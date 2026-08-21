@@ -9,7 +9,7 @@ configuration, and deployment.
 
 | App | Description |
 | --- | ----------- |
-| _none yet_ | |
+| [task-list-completed](./task-list-completed/) | Blocks PR merges until every markdown checkbox on the PR is ticked. |
 
 ## Layout
 

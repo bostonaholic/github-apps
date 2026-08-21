@@ -1,0 +1,22 @@
+# GitHub App manifest defaults, used by Probot's setup flow (`npm start`
+# with no APP_ID configured) to register the app.
+name: task-list-completed
+description: >-
+  Blocks pull request merges until every markdown task list item — in the
+  description, comments, reviews, and review comments — is checked off.
+
+default_events:
+  - pull_request
+  - issue_comment
+  - pull_request_review
+  - pull_request_review_comment
+
+default_permissions:
+  # Read PRs, reviews, and comments; write the sticky comment.
+  pull_requests: write
+  # Report the task-list-completed commit status.
+  statuses: write
+  # Read .github/task-list.yml for per-repo configuration.
+  contents: read
+
+public: false
