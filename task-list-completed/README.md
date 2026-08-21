@@ -70,6 +70,7 @@ and fill in [`.env.example`](./.env.example).
 Required permissions and events (declared in `app.yml`):
 
 - **Pull requests: read & write** — read PRs/comments/reviews, write the sticky comment
+- **Issues: read & write** — required for the `issue_comment` webhook event; sticky comment CRUD uses the issues API
 - **Commit statuses: read & write** — report the status
 - **Contents: read** — read `.github/task-list.yml`
 - Events: `pull_request`, `issue_comment`, `pull_request_review`, `pull_request_review_comment`
