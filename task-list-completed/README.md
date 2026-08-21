@@ -88,10 +88,15 @@ The check appears in the list after the app has reported at least once.
 ## Development
 
 ```bash
-npm test        # vitest: parser, formatter, and orchestration tests
-npm run build   # tsc → lib/
-npm start       # probot run ./lib/index.js (set WEBHOOK_PROXY_URL for local webhooks)
+npm test          # vitest: parser, formatter, and orchestration tests
+npm run test:e2e  # live end-to-end run against the sandbox repo (see e2e.sh)
+npm run build     # tsc → lib/
+npm start         # probot run ./lib/index.js (set WEBHOOK_PROXY_URL for local webhooks)
 ```
+
+The e2e run needs the server running and the app installed on the sandbox
+repo; the `e2e-task-list-completed` project skill covers preconditions and
+failure triage.
 
 Source layout:
 

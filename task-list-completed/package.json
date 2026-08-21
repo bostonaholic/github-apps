@@ -12,6 +12,7 @@
     "build": "tsc",
     "start": "probot run ./lib/index.js",
     "test": "vitest run",
+    "test:e2e": "bash e2e.sh",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
