@@ -74,7 +74,11 @@ gh api -X PUT repos/bostonaholic/shepherd-sandbox/contents/.github/workflows/e2e
   -f content="$(base64 < /tmp/e2e-ci.yml)"
 ```
 
-Then install the app on the sandbox repo.
+Then install the app on the sandbox repo, and set the sandbox repo's
+watch status to **Ignore** (repo page → Watch → Ignore): e2e churn —
+PRs, comments, and the deliberately failing `e2e-ci` runs — otherwise
+emails whoever triggers it, and GitHub has no per-repo Actions
+notification setting.
 
 ## Run
 
