@@ -123,7 +123,10 @@ remains (don't attempt these):
 - Install it on repos — the `install-github-app` skill; add its
   `apps/<app>.md` per that skill's "Adding a new app" section.
 - Vercel project + DNS — `<app>/README.md`, "Deploy".
-- Icons — `<app>/assets/`.
+- Icons — `<app>/assets/`; then copy `icon.svg` → `public/favicon.svg`
+  and generate `public/favicon.png` (`sips -Z 64 assets/icon.png --out
+  public/favicon.png`) — the page already links both, and Vercel's
+  dashboard takes its project icon from the deployed favicon.
 - Real e2e — `e2e.sh`, a sandbox repo, and an `e2e-<app>` skill
   (models: the existing apps). Set the sandbox repo's watch status to
   **Ignore** (repo page → Watch → Ignore): e2e churn — PRs, comments,
