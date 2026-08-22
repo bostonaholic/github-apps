@@ -1,7 +1,8 @@
 # AGENTS.md
 
 Agent guidance for the `task-list-completed` app. See `README.md` for what
-the app does, setup, and configuration.
+the app does, setup, and configuration. User-visible changes get an entry
+under `[Unreleased]` in `CHANGELOG.md` (convention in the root `AGENTS.md`).
 
 ## Commands
 
