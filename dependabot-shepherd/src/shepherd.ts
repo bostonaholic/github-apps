@@ -40,9 +40,11 @@ export interface ReconcileParams {
   log?: Logger;
 }
 
+// "method" is reserved by octokit's graphql() as a request option, so the
+// variable must be named something else.
 const ENABLE_AUTO_MERGE = `
-  mutation($id: ID!, $method: PullRequestMergeMethod!) {
-    enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $method }) {
+  mutation($id: ID!, $mergeMethod: PullRequestMergeMethod!) {
+    enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $mergeMethod }) {
       clientMutationId
     }
   }
@@ -106,7 +108,7 @@ export async function reconcile(
   try {
     await octokit.graphql(ENABLE_AUTO_MERGE, {
       id: pr.node_id,
-      method: config.merge_method.toUpperCase(),
+      mergeMethod: config.merge_method.toUpperCase(),
     });
     log.info(`${tag}: auto-merge enabled`);
     return;

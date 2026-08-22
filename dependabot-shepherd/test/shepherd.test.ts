@@ -104,7 +104,7 @@ describe("reconcile", () => {
     expect(calls.approvals).toHaveLength(1);
     expect(calls.approvals[0].event).toBe("APPROVE");
     expect(calls.approvals[0].body).toContain("lodash 4.17.20 → 4.17.21");
-    expect(calls.graphql).toEqual([{ id: "PR_1", method: "SQUASH" }]);
+    expect(calls.graphql).toEqual([{ id: "PR_1", mergeMethod: "SQUASH" }]);
     expect(calls.merges).toHaveLength(0);
   });
 
@@ -129,7 +129,7 @@ describe("reconcile", () => {
 
   it("uses the configured merge method", async () => {
     const calls = await run({}, { config: normalizeConfig({ merge_method: "rebase" }) });
-    expect(calls.graphql[0].method).toBe("REBASE");
+    expect(calls.graphql[0].mergeMethod).toBe("REBASE");
   });
 
   it("merges directly when auto-merge is not allowed and checks are green", async () => {
