@@ -47,6 +47,9 @@ What must exist beforehand:
 2. **`gh` authenticated** with push access to `bostonaholic/task-list-sandbox`.
 3. **App installed on the sandbox repo** (it is, unless someone uninstalled it —
    see <https://github.com/settings/installations>).
+4. **Sandbox notifications ignored** (one-time, already done): the sandbox
+   repo's watch status is set to **Ignore** (repo page → Watch → Ignore) so
+   e2e churn — PRs and comments — sends no notifications.
 
 ## Run
 

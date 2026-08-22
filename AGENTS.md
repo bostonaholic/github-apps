@@ -14,6 +14,9 @@ App specifics — commands, architecture, testing — live in each app's own
 documentation (`<app>/README.md` and `<app>/AGENTS.md`). Read those before
 working on an app.
 
+New apps are scaffolded by the `create-github-app` skill from its
+bundled template (`.claude/skills/create-github-app/resources/template/`).
+
 ## App registration names
 
 GitHub App names are globally unique across all of GitHub (not namespaced

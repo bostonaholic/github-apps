@@ -1,0 +1,17 @@
+# GitHub App manifest defaults, used by Probot's setup flow (`npm start`
+# with no APP_ID configured) to register the app.
+# App names are globally unique on GitHub; registrations from this repo
+# take the -bostonaholic suffix (see root AGENTS.md).
+name: __APP_NAME__-bostonaholic
+url: https://github.com/bostonaholic/github-apps
+description: >-
+  A GitHub App that __APP_DESCRIPTION__.
+
+# TODO(scaffold): the minimum events the app needs, matching src/index.ts.
+default_events: []
+
+# TODO(scaffold): the minimum permissions, one justifying comment per entry
+# (style: the other apps' app.yml).
+default_permissions: {}
+
+public: false
