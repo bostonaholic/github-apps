@@ -125,6 +125,11 @@ skips builds for commits that don't touch this app.
   function — a 500 there means bad credentials in the Vercel env.
 - The GitHub App registration's webhook URL points at
   `https://dependabot-shepherd.bostonaholic.dev/api/github/webhooks`.
+- **Rollback**: repoint the webhook URL back at the smee channel kept as
+  `WEBHOOK_PROXY_URL` in `.env`
+  (`node --env-file=.env ../scripts/repoint-webhook.mjs <smee-url>`), run
+  `npm start` locally, and redeliver anything missed from the app's Recent
+  Deliveries (retained ~30 days).
 
 ## Development
 

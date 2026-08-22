@@ -30,6 +30,31 @@ registered from this repo takes the suffix `-bostonaholic`:
   repo — directory, commit scope, tags, changelog, status context — keeps
   the bare `<app>` name.
 
+## Hosted deployments
+
+Each app deploys to Vercel at `https://<app>.bostonaholic.dev`:
+
+- **One Vercel project per app**, named `<app>`, in the **airship-labs**
+  team (the account's only team — there is no `bostonaholic` Vercel team,
+  and creating one would be a paid Pro plan). Root Directory is the app's
+  directory; pushing to `main` deploys, with `vercel.json`'s
+  `ignoreCommand` skipping builds for commits that don't touch the app.
+- **Entry point** `api/github/webhooks/index.js` wraps the compiled app
+  (`lib/index.js`) in Probot's `createNodeMiddleware`; `vercel.json`'s
+  `buildCommand` runs `tsc` first. `public/index.html` must exist (Vercel's
+  output-directory check) and is deliberately informative — don't strip it.
+- **Project env vars:** `APP_ID`, `WEBHOOK_SECRET`, `PRIVATE_KEY`, and
+  `NODEJS_HELPERS=0` (Vercel must not consume the request body — signature
+  verification needs it raw). Never set `WEBHOOK_PROXY_URL` in production.
+- **DNS:** Namecheap CNAME `<app>` → `cname.vercel-dns.com` on
+  bostonaholic.dev.
+- **Webhook URL:** the GitHub App registration points at
+  `https://<app>.bostonaholic.dev/api/github/webhooks`. To inspect or
+  repoint it (including rolling back to the smee channel kept as
+  `WEBHOOK_PROXY_URL` in the app's `.env`):
+  `node --env-file=<app>/.env scripts/repoint-webhook.mjs [--dry-run|<url>]`
+  — or the app's settings page under <https://github.com/settings/apps>.
+
 ## Commits
 
 Conventional Commits scoped by app name, e.g.
