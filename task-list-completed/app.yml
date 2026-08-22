@@ -1,6 +1,8 @@
 # GitHub App manifest defaults, used by Probot's setup flow (`npm start`
 # with no APP_ID configured) to register the app.
-name: task-list-completed
+# Registered name carries the repo-wide -bostonaholic suffix (root AGENTS.md,
+# "App registration names") — GitHub App names are globally unique.
+name: task-list-completed-bostonaholic
 url: https://github.com/bostonaholic/github-apps
 description: >-
   Blocks pull request merges until every markdown task list item — in the

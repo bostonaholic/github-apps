@@ -63,9 +63,11 @@ npm start
 
 With no `.env` configured, Probot serves a setup page at
 <http://localhost:3000> that registers the app from [`app.yml`](./app.yml)
-(GitHub App names are globally unique — pick a variant if `task-list-completed`
-is taken) and writes credentials to `.env`. Alternatively, register manually
-and fill in [`.env.example`](./.env.example).
+as `task-list-completed-bostonaholic` and writes credentials to `.env`.
+GitHub App names are globally unique across GitHub, so every app in this
+repo registers with the `-bostonaholic` suffix (see the root `AGENTS.md`,
+"App registration names"). Alternatively, register manually and fill in
+[`.env.example`](./.env.example).
 
 Required permissions and events (declared in `app.yml`):
 
