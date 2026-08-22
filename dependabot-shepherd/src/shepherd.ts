@@ -177,8 +177,10 @@ function errorMessage(error: unknown): string {
 type Rollup = "green" | "pending" | "red";
 
 // Combined verdict over check runs and (legacy) commit statuses on a ref.
-// No checks and no statuses at all counts as green: zero-touch on repos
-// without CI is deliberate (see README).
+// No checks and no statuses at all counts as green ONLY on a repo with no
+// workflow files: zero-touch on repos without CI is deliberate (see
+// README), but right after a PR opens, Actions may not have created its
+// check runs yet — merging into that window would bypass CI.
 async function checksRollup(
   octokit: Octokit,
   { owner, repo, ref }: { owner: string; repo: string; ref: string },
@@ -211,5 +213,31 @@ async function checksRollup(
     else if (combined.state !== "success") return "red";
   }
 
+  if (runs.length === 0 && combined.total_count === 0) {
+    // A later check_suite/status event re-enters when CI shows up.
+    return (await hasWorkflows(octokit, owner, repo)) ? "pending" : "green";
+  }
+
   return pending ? "pending" : "green";
+}
+
+async function hasWorkflows(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<boolean> {
+  try {
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: ".github/workflows",
+    });
+    return (
+      Array.isArray(data) &&
+      data.some((entry) => /\.ya?ml$/.test(entry.name))
+    );
+  } catch (error) {
+    if ((error as { status?: number }).status === 404) return false;
+    throw error;
+  }
 }

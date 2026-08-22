@@ -44,9 +44,11 @@ requested changes.
    and merges directly when everything is green — or waits for the next
    check event if something is still running.
 
-> **Note:** on a repo with *no CI at all*, an allowed update merges
-> immediately after approval. Zero-touch is the point — but know that this
-> is the behavior before installing the app on such repos.
+> **Note:** on a repo with *no CI at all* (no workflow files, no commit
+> statuses), an allowed update merges immediately after approval.
+> Zero-touch is the point — but know that this is the behavior before
+> installing the app on such repos. On repos that *do* have workflow
+> files, the app waits for checks to appear and finish before merging.
 
 ## Rebasing
 

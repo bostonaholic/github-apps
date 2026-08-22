@@ -15,10 +15,13 @@ interface FakeOptions {
   prs?: FakePr[];
   comments?: Record<number, { user: { type: string }; body: string; created_at: string }[]>;
   headCommittedAt?: string;
+  // Per-PR sequence of mergeable_state values across successive gets.
+  mergeableSequence?: Record<number, string[]>;
 }
 
 function fakeOctokit(options: FakeOptions = {}) {
   const calls = { comments: [] as Record<string, unknown>[] };
+  const gets = new Map<number, number>();
 
   const prs = (options.prs ?? []).map((pr) => ({
     user: { login: "dependabot[bot]", type: "Bot" },
@@ -33,9 +36,17 @@ function fakeOctokit(options: FakeOptions = {}) {
     rest: {
       pulls: {
         list: "list",
-        get: async ({ pull_number }: { pull_number: number }) => ({
-          data: prs.find((pr) => pr.number === pull_number),
-        }),
+        get: async ({ pull_number }: { pull_number: number }) => {
+          const attempt = gets.get(pull_number) ?? 0;
+          gets.set(pull_number, attempt + 1);
+          const pr = prs.find((p) => p.number === pull_number);
+          const sequence = options.mergeableSequence?.[pull_number];
+          if (pr && sequence) {
+            const state = sequence[Math.min(attempt, sequence.length - 1)];
+            return { data: { ...pr, mergeable_state: state } };
+          }
+          return { data: pr };
+        },
       },
       issues: {
         listComments: "listComments",
@@ -66,7 +77,7 @@ function fakeOctokit(options: FakeOptions = {}) {
   return { octokit, calls };
 }
 
-const params = { owner: "o", repo: "r", config: DEFAULTS };
+const params = { owner: "o", repo: "r", config: DEFAULTS, retryDelayMs: 0 };
 
 async function run(
   options: FakeOptions = {},
@@ -149,6 +160,22 @@ describe("rebaseStalePRs", () => {
       headCommittedAt: "2026-08-22T12:00:00Z",
     });
     expect(calls.comments).toHaveLength(1);
+  });
+
+  it("retries through an unknown mergeable_state", async () => {
+    const calls = await run({
+      prs: [{ number: 1 }],
+      mergeableSequence: { 1: ["unknown", "behind"] },
+    });
+    expect(calls.comments).toHaveLength(1);
+  });
+
+  it("gives up on a persistently unknown mergeable_state", async () => {
+    const calls = await run({
+      prs: [{ number: 1 }],
+      mergeableSequence: { 1: ["unknown"] },
+    });
+    expect(calls.comments).toHaveLength(0);
   });
 
   it("does nothing when rebasing is disabled", async () => {

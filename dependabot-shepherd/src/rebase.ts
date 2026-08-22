@@ -20,6 +20,8 @@ export interface RebaseParams {
   // e2e seam, as in shepherd.ts. Never set in production.
   allowAuthor?: string;
   log?: Logger;
+  // Delay between retries while GitHub computes mergeable_state.
+  retryDelayMs?: number;
 }
 
 export async function rebaseStalePRs(
@@ -46,11 +48,13 @@ export async function rebaseStalePRs(
     if (item.draft) continue;
     if (item.labels.some((label) => label.name === IGNORE_LABEL)) continue;
 
-    // mergeable_state is only present on a full get.
-    const { data: pr } = await octokit.rest.pulls.get({
+    // mergeable_state is only present on a full get, and GitHub computes
+    // it lazily after the base moves — retry briefly through "unknown".
+    const pr = await getWithMergeableState(octokit, {
       owner,
       repo,
       pull_number: item.number,
+      retryDelayMs: params.retryDelayMs ?? 2000,
     });
     if (pr.mergeable_state !== "behind" && pr.mergeable_state !== "dirty") continue;
 
@@ -94,5 +98,17 @@ export async function rebaseStalePRs(
       body: REBASE_COMMAND,
     });
     log.info(`${owner}/${repo}#${item.number}: requested rebase (${pr.mergeable_state})`);
+  }
+}
+
+async function getWithMergeableState(
+  octokit: Octokit,
+  params: { owner: string; repo: string; pull_number: number; retryDelayMs: number },
+) {
+  const { owner, repo, pull_number, retryDelayMs } = params;
+  for (let attempt = 0; ; attempt++) {
+    const { data: pr } = await octokit.rest.pulls.get({ owner, repo, pull_number });
+    if (pr.mergeable_state !== "unknown" || attempt >= 2) return pr;
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
   }
 }

@@ -9,6 +9,8 @@ interface FakeOptions {
   combinedStatus?: { state: string; total_count: number };
   autoMergeError?: string;
   mergeError?: number;
+  // Repo has workflow files (default: none — .github/workflows 404s).
+  workflows?: boolean;
 }
 
 function fakeOctokit(options: FakeOptions = {}) {
@@ -59,6 +61,12 @@ function fakeOctokit(options: FakeOptions = {}) {
         getCombinedStatusForRef: async () => ({
           data: options.combinedStatus ?? { state: "success", total_count: 0 },
         }),
+        getContent: async () => {
+          if (options.workflows) return { data: [{ name: "ci.yml" }] };
+          const error = new Error("Not Found") as Error & { status: number };
+          error.status = 404;
+          throw error;
+        },
       },
     },
     graphql: async (_query: string, vars: Record<string, unknown>) => {
@@ -134,9 +142,17 @@ describe("reconcile", () => {
     ]);
   });
 
-  it("merges a repo with no CI at all (clean status, zero checks)", async () => {
+  it("merges a repo with no CI at all (clean status, zero checks, no workflows)", async () => {
     const calls = await run({ autoMergeError: "Pull request is in clean status" });
     expect(calls.merges).toHaveLength(1);
+  });
+
+  it("waits when checks have not appeared yet but the repo has workflows", async () => {
+    const calls = await run({
+      autoMergeError: "Pull request is in clean status",
+      workflows: true,
+    });
+    expect(calls.merges).toHaveLength(0);
   });
 
   it("waits while checks are still running", async () => {
