@@ -24,11 +24,20 @@ right and interpreting failures.
 
 ## Preconditions
 
-The script manages the app server itself: it builds the current source,
-starts the server, waits for the webhook proxy to connect, and stops it on
-exit. If a server is already listening on :3000 it is reused and left
-running — note that a reused server may be running stale code, so restart it
-(or stop it and let the script start one) when testing fresh changes.
+Two modes:
+
+- **Local (default)**: the script manages the app server itself: it builds
+  the current source, starts the server, waits for the webhook proxy to
+  connect, and stops it on exit. If a server is already listening on :3000
+  it is reused and left running — note that a reused server may be running
+  stale code, so restart it (or stop it and let the script start one) when
+  testing fresh changes. Requires the production app registration's webhook
+  URL to point at the smee channel — since the app is hosted, that means a
+  dev app registration (see the README's Development section).
+- **Hosted (`E2E_HOSTED=1`)**: no server lifecycle at all — asserts against
+  the deployed app at <https://task-list-completed.bostonaholic.dev>
+  (`E2E_TARGET_URL` overrides). Tests the **deployed** code, not the working
+  tree. This is the normal mode after merging to `main`.
 
 What must exist beforehand:
 
@@ -42,7 +51,8 @@ What must exist beforehand:
 ## Run
 
 ```bash
-cd task-list-completed && npm run test:e2e
+cd task-list-completed && E2E_HOSTED=1 npm run test:e2e  # against production
+cd task-list-completed && npm run test:e2e               # local server mode
 ```
 
 The script prints one `== step` header per row of the table, each satisfied
@@ -56,6 +66,11 @@ prints its URL for inspection.
 
 ## Interpreting failures
 
+- **Hosted preflight failure** (`hosted app ... is not healthy`): the GET
+  probe on the webhook path did not return 404 — the deployment, DNS, or
+  TLS is down (000/timeouts), or the function crashed on cold start (500:
+  malformed `PRIVATE_KEY`/`APP_ID` in the Vercel env). Check the Vercel
+  dashboard's function logs before rerunning.
 - **Server startup failure**: the script prints the server log tail — a
   crash on boot points at the code or `.env`; a proxy-connect timeout points
   at smee.io or the network.

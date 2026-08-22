@@ -13,14 +13,18 @@ npm run typecheck                 # tsc --noEmit
 npm run build                     # tsc → lib/
 npm start                         # probot run ./lib/index.js
 npm run test:e2e                  # live e2e against bostonaholic/task-list-sandbox
+E2E_HOSTED=1 npm run test:e2e     # live e2e against the deployed app
 ```
 
 The e2e run (`e2e.sh`) opens a real PR in the sandbox repo and asserts the
-commit status and sticky comment after each mutation. It builds and starts
-the app server itself, but requires `.env` (app credentials — if missing, the
-app was never registered; see the README's Setup) and an authenticated
-`gh` with access to the sandbox. A server already listening on :3000 is
-reused — restart it if it may be running stale code.
+commit status and sticky comment after each mutation. In local mode it
+builds and starts the app server itself, but requires `.env` (app
+credentials — if missing, the app was never registered; see the README's
+Setup) and an authenticated `gh` with access to the sandbox. A server
+already listening on :3000 is reused — restart it if it may be running
+stale code. With `E2E_HOSTED=1` it skips the server entirely and asserts
+against the Vercel deployment (which runs the code merged to `main`, not
+the working tree).
 `../.claude/skills/e2e-task-list-completed/SKILL.md` documents preconditions
 and failure triage; do not retry a failed run more than once before
 diagnosing.
@@ -42,6 +46,9 @@ Strict layering, pure core with I/O at the edges:
   syncs the commit status and the single sticky comment
 - `src/index.ts` — Probot event wiring only; reads `.github/task-list.yml`
   repo config and delegates to `runCheck`
+- `api/github/webhooks/index.js` — Vercel serverless entry point wrapping
+  the compiled app (see README "Deploy"); changing the webhook path or the
+  env-var contract touches this file and `vercel.json`
 
 Unit tests in `test/` mirror this split (parser, formatter, orchestration
 with a mocked octokit).

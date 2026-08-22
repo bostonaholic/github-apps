@@ -11,6 +11,10 @@
 # already listening on :3000 is reused instead and left running (it may be
 # running stale code).
 #
+# E2E_HOSTED=1 skips the server lifecycle entirely and asserts against the
+# deployed app (E2E_TARGET_URL overrides the URL). Note this tests the
+# deployed code, not the working tree.
+#
 # The PR and branch are cleaned up on exit (pass or fail); the closed PR
 # remains in the sandbox for inspection.
 set -euo pipefail
@@ -94,7 +98,15 @@ sticky_comment() {
 log "== preflight"
 gh api "repos/$REPO" --jq .full_name >/dev/null \
   || fail "cannot reach $REPO with gh"
-if curl -s -o /dev/null http://localhost:3000; then
+if [[ -n "${E2E_HOSTED:-}" ]]; then
+  HOSTED_URL="${E2E_TARGET_URL:-https://task-list-completed.bostonaholic.dev}"
+  # GET on the exact webhook path returns 404 from a healthy app: the
+  # function cold-started, meaning the env credentials parsed at module load.
+  code=$(curl -s -o /dev/null -w '%{http_code}' "$HOSTED_URL/api/github/webhooks")
+  [[ "$code" == "404" ]] \
+    || fail "hosted app at $HOSTED_URL is not healthy (GET on the webhook path returned ${code:-nothing}, expected 404)"
+  log "  hosted mode: $HOSTED_URL"
+elif curl -s -o /dev/null http://localhost:3000; then
   log "  reusing the already-running app server on :3000 (may not reflect current source)"
 else
   start_server

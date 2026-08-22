@@ -87,19 +87,52 @@ In each repo: **Settings → Branches → Branch protection rules → Require
 status checks to pass before merging**, and select `task-list-completed`.
 The check appears in the list after the app has reported at least once.
 
+## Deploy
+
+The app is hosted on Vercel at
+<https://task-list-completed.bostonaholic.dev>. Pushing to `main` deploys
+automatically via Vercel's git integration; the Vercel project's Root
+Directory is `task-list-completed`, and `vercel.json`'s `ignoreCommand`
+skips builds for commits that don't touch this app.
+
+- **Entry point**: [`api/github/webhooks/index.js`](./api/github/webhooks/index.js)
+  wraps the compiled app (`lib/index.js`) in Probot's `createNodeMiddleware`;
+  `vercel.json`'s `buildCommand` runs `tsc` before functions are bundled.
+- **Env vars** (Vercel project settings): `APP_ID`, `WEBHOOK_SECRET`,
+  `PRIVATE_KEY`, and `NODEJS_HELPERS=0` (stops Vercel consuming the request
+  body — signature verification needs the raw body). Never set
+  `WEBHOOK_PROXY_URL` in production.
+- **DNS**: `task-list-completed` CNAME on bostonaholic.dev (Namecheap) →
+  `cname.vercel-dns.com`.
+- **Health probes** (no code): `GET /` serves the static landing page
+  (DNS/TLS); `GET /api/github/webhooks` returns 404 JSON from a healthy
+  function — a 500 there means bad credentials in the Vercel env.
+- The GitHub App registration's webhook URL points at
+  `https://task-list-completed.bostonaholic.dev/api/github/webhooks`.
+
 ## Development
 
 ```bash
-npm test          # vitest: parser, formatter, and orchestration tests
-npm run test:e2e  # live end-to-end run against the sandbox repo (see e2e.sh)
-npm run build     # tsc → lib/
-npm start         # probot run ./lib/index.js (set WEBHOOK_PROXY_URL for local webhooks)
+npm test                       # vitest: parser, formatter, and orchestration tests
+E2E_HOSTED=1 npm run test:e2e  # live e2e against the deployed app (see e2e.sh)
+npm run test:e2e               # live e2e against a locally started server
+npm run build                  # tsc → lib/
+npm start                      # probot run ./lib/index.js (set WEBHOOK_PROXY_URL for local webhooks)
 ```
 
-The e2e run builds and starts the app server itself (stopping it when done;
-an already-running server is reused). It needs `.env` and the app installed
-on the sandbox repo; the `e2e-task-list-completed` project skill covers
-preconditions and failure triage.
+The production app registration's webhook URL points at the hosted
+deployment, so a local `npm start` + smee receives no events. Day to day:
+unit tests locally, then `E2E_HOSTED=1 npm run test:e2e` against production
+after merging. For interactive webhook debugging, register a separate dev
+app (`task-list-completed-dev-bostonaholic`, via the empty-`.env` setup
+flow) with its own smee channel, installed only on the sandbox repo — never
+repoint the production app's webhook URL at smee.
+
+In local mode the e2e run builds and starts the app server itself (stopping
+it when done; an already-running server is reused). It needs `.env` and the
+app installed on the sandbox repo; in hosted mode it needs only `gh`. The
+`e2e-task-list-completed` project skill covers preconditions and failure
+triage.
 
 Source layout:
 

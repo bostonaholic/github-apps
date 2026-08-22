@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- The app is now hosted at <https://task-list-completed.bostonaholic.dev>
+  (Vercel). Statuses report continuously — no local process needs to be
+  running, so a required `task-list-completed` check is always safe to add.
+
 ## [0.1.0] - 2026-08-22
 
 ### Added

@@ -18,9 +18,8 @@ wires up its configuration. The argument is the target repo — accept
   `/user/installations` endpoint returns 403 with `gh`'s token (they require
   a GitHub-App user token). Do not retry via API — installation happens in
   the browser (Claude-in-Chrome).
-- **No hosted deployment.** The app runs locally (`npm start` + smee.io
-  proxy). Statuses only report while that process is up; a *required* check
-  with the app down blocks merges on the repo.
+- **Hosted on Vercel** at <https://task-list-completed.bostonaholic.dev> —
+  statuses report continuously, so a *required* check is safe to add.
 
 ## Step 1 — validate the repo
 
@@ -70,9 +69,7 @@ config file that just restates defaults.
 
 **Required status check.** The app reports a *commit status* (not a check
 run) with context `task-list-completed`. Making it required is what actually
-blocks merges — but given the no-hosted-deployment constraint above, confirm
-with the user before requiring it unless they already asked. Then, on the
-default branch:
+blocks merges. On the default branch:
 
 - Existing classic protection — append without clobbering:
 
@@ -113,6 +110,4 @@ default branch:
 
 ## Report
 
-End by telling the user: what was installed/configured, and — if the check
-was made required — the reminder that statuses only report while the local
-app process is running.
+End by telling the user what was installed/configured.
