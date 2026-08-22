@@ -80,10 +80,12 @@ the app's directory name so apps never collide:
 - **Release commit:** one commit on `main` that bumps `package.json` and
   renames the app changelog's `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`,
   with subject `chore(<app>): release vX.Y.Z`.
-- **Annotated tags only** (`git tag -a <app>-vX.Y.Z -m "<app> vX.Y.Z"`),
-  pointing at that release commit. Pushed release tags are immutable —
-  never move, re-point, or delete one; fix mistakes with a new patch
-  release.
+- **Signed annotated tags only**
+  (`git tag -s <app>-vX.Y.Z -m "<app> vX.Y.Z"`), pointing at that release
+  commit. The repo config sets `tag.gpgsign true`, so plain `git tag -a`
+  signs too — but verify with `git tag -v` before pushing. Pushed release
+  tags are immutable — never move, re-point, or delete one; fix mistakes
+  with a new patch release.
 - **One GitHub release per tag:** title `<app> vX.Y.Z`, body is that
   version's `CHANGELOG.md` section verbatim (this is why changelog links
   must be absolute URLs). Always pass `--latest=false` — GitHub's "Latest"
