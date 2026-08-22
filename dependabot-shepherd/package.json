@@ -1,6 +1,6 @@
 {
   "name": "dependabot-shepherd",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "GitHub App that approves, auto-merges, and rebases Dependabot PRs per policy",
   "type": "module",
