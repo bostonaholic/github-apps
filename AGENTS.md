@@ -14,6 +14,22 @@ App specifics — commands, architecture, testing — live in each app's own
 documentation (`<app>/README.md` and `<app>/AGENTS.md`). Read those before
 working on an app.
 
+## App registration names
+
+GitHub App names are globally unique across all of GitHub (not namespaced
+per owner), so plain names collide with other people's apps. Every app
+registered from this repo takes the suffix `-bostonaholic`:
+
+- **Registered name / slug:** `<app>-bostonaholic`, where `<app>` is the
+  app's directory name — e.g. `task-list-completed-bostonaholic`,
+  installable at `https://github.com/apps/<app>-bostonaholic`.
+- The app's manifest (`<app>/app.yml`) declares the suffixed name, so
+  registration produces it deterministically instead of GitHub prompting
+  for a variant.
+- The suffix applies only to the GitHub registration. Everything inside the
+  repo — directory, commit scope, tags, changelog, status context — keeps
+  the bare `<app>` name.
+
 ## Commits
 
 Conventional Commits scoped by app name, e.g.
