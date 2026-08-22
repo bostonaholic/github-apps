@@ -107,6 +107,15 @@ skips builds for commits that don't touch this app.
 - **Health probes** (no code): `GET /` serves the static landing page
   (DNS/TLS); `GET /api/github/webhooks` returns 404 JSON from a healthy
   function — a 500 there means bad credentials in the Vercel env.
+- **Timeout ceiling**: functions are capped at 30 seconds (`maxDuration` in
+  [`vercel.json`](./vercel.json)). A normal run is a handful of API calls,
+  but a PR with hundreds of comments/reviews paginates all four task
+  sources and can hit the cap. Hitting it kills the function mid-run: the
+  Vercel function logs show a timeout, and the PR is left with a stale (or
+  forever-"Expected") `task-list-completed` status because the run died
+  before reporting. If that happens, raise `maxDuration` (the ceiling is
+  plan-dependent — check Vercel's limits docs) before hunting for a code
+  bug.
 - The GitHub App registration's webhook URL points at
   `https://task-list-completed.bostonaholic.dev/api/github/webhooks`.
 
