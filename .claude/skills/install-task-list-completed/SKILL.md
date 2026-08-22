@@ -14,10 +14,14 @@ wires up its configuration. The argument is the target repo — accept
 
 - **The app is private**: it can only be installed on repos owned by
   `bostonaholic`. If the argument names another owner, stop and tell the user.
-- **The REST API cannot manage installation repo selection.** Every
-  `/user/installations` endpoint returns 403 with `gh`'s token (they require
-  a GitHub-App user token). Do not retry via API — installation happens in
-  the browser (Claude-in-Chrome).
+- **Installation repo selection needs two tokens** (both non-expiring, in
+  `task-list-completed/.env`; never echo them). GitHub gates the
+  `/user/installations` endpoints by token type: reads
+  (`GET /user/installations*`) accept only a GitHub-App user token
+  (`GITHUB_APP_USER_TOKEN`), writes
+  (`PUT|DELETE /user/installations/{id}/repositories/{repo_id}`) accept only
+  a classic PAT with `repo` scope (`GITHUB_PAT`). `gh`'s OAuth token gets
+  403 on all of them — never retry with it.
 - **Hosted on Vercel** at <https://task-list-completed.bostonaholic.dev> —
   statuses report continuously, so a *required* check is safe to add.
 
@@ -31,34 +35,70 @@ Owner must be `bostonaholic`; refuse archived repos; warn on forks (PRs
 usually target upstream, where this installation does not apply). Keep the
 default branch name for Step 3.
 
-## Step 2 — install (browser)
+## Step 2 — install (API)
 
-Manage the installation at <https://github.com/settings/installations> →
-**Configure** next to `task-list-completed-bostonaholic` (direct fast path:
-<https://github.com/settings/installations/155556892>; if that 404s the app
-was reinstalled under a new ID — go via the list page. If the app is missing
-from the list entirely, it was uninstalled: stop and follow the Setup
-section of `task-list-completed/README.md`).
+Load the tokens (run from the repo root):
 
-On the installation page, under "Repository access" (keep **Only select
-repositories** selected — do not flip to "All repositories"):
+```bash
+ENV=task-list-completed/.env
+APP_TOKEN=$(grep '^GITHUB_APP_USER_TOKEN=' $ENV | cut -d= -f2)  # reads
+PAT=$(grep '^GITHUB_PAT=' $ENV | cut -d= -f2)                   # writes
+```
 
-1. If the repo already appears under "Selected N repositories", it is
-   installed — skip to Step 3.
-2. Click **Select repositories**, then **wait ~1 s before typing**: the
-   search input focuses asynchronously, and early keystrokes leak to
-   GitHub's global hotkeys and open the command palette (press Escape and
-   reopen the picker to recover).
-3. Type the repo name, wait ~1 s for the async filter, then click the exact
-   `bostonaholic/<repo>` entry. Beware substring collisions (`dev` also
-   matches `dev-conveyor-demo`; `dotfiles` also matches `block-dotfiles`,
-   `shopify-dotfiles`) — locate the entry by its exact accessible name
-   (element ref), not by coordinates: selections re-render the page and
-   shift scroll position, so saved coordinates go stale.
-4. Confirm the "Selected N repositories" count went up by one and the repo
-   is listed, then click **Save**.
-5. Reload the page and confirm the repo is still listed (persisted
-   server-side), then close the tab.
+1. Resolve the installation id (known id `155556892`; re-resolve if calls
+   404 — a reinstall changes it):
+
+   ```bash
+   curl -s -H "Authorization: Bearer $APP_TOKEN" https://api.github.com/user/installations \
+     | jq '.installations[] | select(.app_slug == "task-list-completed-bostonaholic") | .id'
+   ```
+
+   Empty output means the app was uninstalled: stop and follow the Setup
+   section of `task-list-completed/README.md`.
+
+2. Skip to Step 3 if the repo is already selected:
+
+   ```bash
+   curl -s -H "Authorization: Bearer $APP_TOKEN" \
+     "https://api.github.com/user/installations/<id>/repositories?per_page=100" \
+     | jq '[.repositories[].full_name] | contains(["<owner>/<repo>"])'
+   ```
+
+3. Add the repo (expect HTTP 204; `DELETE` on the same URL removes one —
+   a 422 there means the removal would empty the installation):
+
+   ```bash
+   REPO_ID=$(gh api repos/<owner>/<repo> --jq .id)
+   curl -s -o /dev/null -w '%{http_code}\n' -X PUT -H "Authorization: Bearer $PAT" \
+     "https://api.github.com/user/installations/<id>/repositories/$REPO_ID"
+   ```
+
+4. Re-run the check from item 2 and confirm it now prints `true`.
+
+**If a token is missing or revoked** (both are non-expiring, so this is
+rare): `GITHUB_PAT` is a classic PAT with `repo` scope the user mints at
+<https://github.com/settings/tokens/new> and pastes into `.env` themselves.
+`GITHUB_APP_USER_TOKEN` comes from the device flow (enabled on the app
+2026-08-22, along with the user-token-expiration opt-out):
+
+```bash
+curl -s -X POST https://github.com/login/device/code -H "Accept: application/json" \
+  -d "client_id=$(grep '^GITHUB_CLIENT_ID=' $ENV | cut -d= -f2)"
+# The user opens github.com/login/device, enters the user_code, and clicks
+# Authorize — that click is human-only (the button's clickjacking protection
+# defeats automation; don't try). Then exchange, and store access_token:
+curl -s -X POST https://github.com/login/oauth/access_token -H "Accept: application/json" \
+  -d "client_id=<same>" -d "device_code=<from above>" \
+  -d "grant_type=urn:ietf:params:oauth:grant-type:device_code"
+```
+
+**Browser fallback** (only if the API path is unavailable): manage at
+<https://github.com/settings/installations> → **Configure** next to
+`task-list-completed-bostonaholic`. Keep **Only select repositories** — do
+not flip to "All repositories". In the repo picker, wait ~1 s before typing
+(early keystrokes leak to GitHub's global hotkeys) and pick the entry by its
+exact accessible name — substring matches collide (`dev` also matches
+`dev-conveyor-demo`). Save, then reload the page to confirm persistence.
 
 ## Step 3 — configure
 
@@ -99,8 +139,8 @@ blocks merges. On the default branch:
 
 ## Verify
 
-- Installation: only the settings page can confirm it (API is 403) — the
-  post-Save reload in Step 2 is the check.
+- Installation: the Step 2 read check
+  (`GET /user/installations/<id>/repositories`) lists the repo.
 - Required check: `gh api repos/<owner>/<repo>/branches/<branch>/protection/required_status_checks`
   lists `task-list-completed`.
 - Live behavior (optional, with the user's OK — it opens and closes a real
