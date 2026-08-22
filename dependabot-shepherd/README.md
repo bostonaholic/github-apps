@@ -57,6 +57,11 @@ are behind or conflicted and comments `@dependabot rebase` on them (at most
 once per stale head). Dependabot force-pushes a fresh branch, checks re-run,
 and the merge flow above picks the PR back up.
 
+In practice this fires for conflicted PRs and, on repos with branch
+protection requiring up-to-date branches, for behind ones. Without that
+protection GitHub reports a merely-stale PR as `clean` — and it needs no
+rebase to merge anyway.
+
 ## Configuration
 
 Optional, via `.github/dependabot-shepherd.yml` in each repo (an org-wide

@@ -18,7 +18,7 @@ this skill covers preconditions, one-time sandbox setup, and failure triage.
 | 2 | Major PR (`Bump react from 18.2.0 to 19.0.0`) | left open, zero reviews |
 | 3 | Patch PR opened as draft, labeled `shepherd: ignore`, marked ready | left open, zero reviews |
 | 4 | Patch PR carrying the `e2e-fail-marker` file (CI red) | blocked while red; merges after the marker is removed and CI turns green |
-| 5 | Push to main while the major PR is open | `@dependabot rebase` comment appears on it |
+| 5 | Push to main that conflicts with the major PR's file | `@dependabot rebase` comment appears on it (a merely-stale PR reports `clean` without strict branch protection, so the scenario forces a conflict) |
 
 ## The author seam
 

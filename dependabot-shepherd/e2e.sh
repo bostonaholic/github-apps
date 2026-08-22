@@ -205,10 +205,14 @@ gh api -X DELETE "repos/$REPO/contents/e2e-fail-marker" \
   -f message="test: remove failure marker" -f sha="$MARKER_SHA" -f branch="$BRANCH4" >/dev/null
 wait_merged "$PR4"
 
-log "== 5: push to main draws a rebase request on the stale major PR"
-gh api -X PUT "repos/$REPO/contents/e2e-main-$TS.txt" \
-  -f message="test: move main forward" \
-  -f content="$(printf 'e2e' | base64)" >/dev/null
+log "== 5: conflicting push to main draws a rebase request on the major PR"
+# The major PR added e2e-$TS-2.txt; pushing different content at the same
+# path to main makes it conflicted ("dirty"). A merely-stale PR won't do:
+# without strict branch protection GitHub reports it as "clean", and no
+# rebase is needed to merge it.
+gh api -X PUT "repos/$REPO/contents/e2e-$TS-2.txt" \
+  -f message="test: conflict with the major PR" \
+  -f content="$(printf 'conflict' | base64)" >/dev/null
 wait_for_rebase_comment "$PR2"
 
 log "E2E PASS ($REPO PRs #$PR1 #$PR2 #$PR3 #$PR4)"
