@@ -9,6 +9,7 @@ configuration, and deployment.
 
 | App | Description |
 | --- | ----------- |
+| [dependabot-shepherd](./dependabot-shepherd/) | Approves, auto-merges, and rebases Dependabot PRs per policy. |
 | [task-list-completed](./task-list-completed/) | Blocks PR merges until every markdown checkbox on the PR is ticked. |
 
 ## Layout

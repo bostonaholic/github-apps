@@ -1,0 +1,31 @@
+# GitHub App manifest defaults, used by Probot's setup flow (`npm start`
+# with no APP_ID configured) to register the app.
+# App names are globally unique on GitHub; registrations from this repo
+# take the -bostonaholic suffix (see root AGENTS.md).
+name: dependabot-shepherd-bostonaholic
+url: https://github.com/bostonaholic/github-apps
+description: >-
+  Zero-touch Dependabot: approves and auto-merges patch/minor updates per
+  policy, and keeps open Dependabot PRs rebased against the default branch.
+
+default_events:
+  - pull_request
+  - check_suite
+  - status
+  - push
+
+default_permissions:
+  # Approve reviews, merge, and enable auto-merge on Dependabot PRs.
+  pull_requests: write
+  # Merging creates a commit; also the push webhook and reading repo config.
+  contents: write
+  # "@dependabot rebase" comments go through the issues API.
+  issues: write
+  # Check-runs rollup and the check_suite webhook.
+  checks: read
+  # Combined commit status and the status webhook (legacy CI).
+  statuses: read
+  # Merging gh-actions ecosystem PRs that modify .github/workflows/*.
+  workflows: write
+
+public: false
