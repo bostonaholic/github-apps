@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Background: dark GitHub-toned rounded square -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c2431"/>
+      <stop offset="1" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="check" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3fb950"/>
+      <stop offset="1" stop-color="#2ea043"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+
+  <!-- Task rows: checkbox + text line -->
+  <g>
+    <!-- Row 1 -->
+    <rect x="176" y="216" width="144" height="144" rx="36" fill="url(#check)"/>
+    <path d="M212 292 l32 32 68 -68" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="384" y="260" width="464" height="56" rx="28" fill="#30363d"/>
+
+    <!-- Row 2 -->
+    <rect x="176" y="440" width="144" height="144" rx="36" fill="url(#check)"/>
+    <path d="M212 516 l32 32 68 -68" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="384" y="484" width="352" height="56" rx="28" fill="#30363d"/>
+
+    <!-- Row 3 -->
+    <rect x="176" y="664" width="144" height="144" rx="36" fill="url(#check)"/>
+    <path d="M212 740 l32 32 68 -68" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="384" y="708" width="408" height="56" rx="28" fill="#30363d"/>
+  </g>
+
+  <!-- Big completion check badge, bottom-right -->
+  <circle cx="768" cy="736" r="180" fill="#0d1117"/>
+  <circle cx="768" cy="736" r="148" fill="url(#check)"/>
+  <path d="M692 740 l52 52 104 -108" fill="none" stroke="#ffffff" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
