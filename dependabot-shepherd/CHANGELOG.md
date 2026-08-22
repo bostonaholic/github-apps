@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- The app is now hosted at <https://dependabot-shepherd.bostonaholic.dev>
+  (Vercel). It acts on Dependabot PRs continuously — no local process needs
+  to be running.
+
 ### Added
 
 - Auto-merge for Dependabot PRs: the app approves an allowed update and

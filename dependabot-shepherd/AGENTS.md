@@ -34,6 +34,9 @@ Strict layering, pure core with I/O at the edges:
   `@dependabot rebase` on stale Dependabot PRs, deduped per head commit
 - `src/index.ts` — Probot event wiring only; reads
   `.github/dependabot-shepherd.yml` and delegates
+- `api/github/webhooks/index.js` — Vercel serverless entry point wrapping
+  the compiled app (see README "Deploy"); changing the webhook path or the
+  env-var contract touches this file and `vercel.json`
 
 Unit tests in `test/` mirror this split (parser, policy, and the two
 orchestrators with a structural fake octokit — no mocking framework).

@@ -105,15 +105,26 @@ PRs should manage themselves.
 
 ### 3. Deploy
 
-Run the server anywhere Node 20+ runs:
+The app is hosted on Vercel at
+<https://dependabot-shepherd.bostonaholic.dev>. Pushing to `main` deploys
+automatically via Vercel's git integration; the Vercel project's Root
+Directory is `dependabot-shepherd`, and `vercel.json`'s `ignoreCommand`
+skips builds for commits that don't touch this app.
 
-```bash
-npm run build
-npm start
-```
-
-For local development, set `WEBHOOK_PROXY_URL` to a [smee.io](https://smee.io)
-channel so webhooks reach your machine.
+- **Entry point**: [`api/github/webhooks/index.js`](./api/github/webhooks/index.js)
+  wraps the compiled app (`lib/index.js`) in Probot's `createNodeMiddleware`;
+  `vercel.json`'s `buildCommand` runs `tsc` before functions are bundled.
+- **Env vars** (Vercel project settings): `APP_ID`, `WEBHOOK_SECRET`,
+  `PRIVATE_KEY`, and `NODEJS_HELPERS=0` (stops Vercel consuming the request
+  body — signature verification needs the raw body). Never set
+  `WEBHOOK_PROXY_URL` or `E2E_ALLOW_AUTHOR` in production.
+- **DNS**: `dependabot-shepherd` CNAME on bostonaholic.dev (Namecheap) →
+  `cname.vercel-dns.com`.
+- **Health probes** (no code): `GET /` serves the static landing page
+  (DNS/TLS); `GET /api/github/webhooks` returns 404 JSON from a healthy
+  function — a 500 there means bad credentials in the Vercel env.
+- The GitHub App registration's webhook URL points at
+  `https://dependabot-shepherd.bostonaholic.dev/api/github/webhooks`.
 
 ## Development
 
@@ -122,3 +133,11 @@ npm test              # unit tests (vitest)
 npm run typecheck     # tsc --noEmit
 npm run test:e2e      # live e2e against a sandbox repo (see AGENTS.md)
 ```
+
+The production app registration's webhook URL points at the hosted
+deployment, so a local `npm start` + smee receives no events. The live e2e
+needs a **local** server started with `E2E_ALLOW_AUTHOR` — which must never
+be set on the production deployment — so running it requires a separate dev
+app registration (`dependabot-shepherd-dev-bostonaholic`, via the
+empty-`.env` setup flow) with its own smee channel, installed only on the
+sandbox repo. Never repoint the production app's webhook URL at smee.

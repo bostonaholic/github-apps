@@ -32,9 +32,18 @@ running server and let the script start its own.
 
 ## Preconditions
 
-1. **`dependabot-shepherd/.env`** — the app's credentials. If missing, the
-   app has never been registered on this machine — stop and follow the Setup
-   section of `dependabot-shepherd/README.md` instead of guessing.
+0. **A dev app registration.** The production app is hosted on Vercel
+   (<https://dependabot-shepherd.bostonaholic.dev>) and its webhook URL
+   points there — a local server on smee receives nothing from the
+   production registration. And the hosted deployment can never run this
+   e2e: it must not set `E2E_ALLOW_AUTHOR`. So the live e2e needs a
+   separate dev app (`dependabot-shepherd-dev-bostonaholic`, registered via
+   the empty-`.env` setup flow, installed only on the sandbox) whose
+   webhook points at a smee channel, with its credentials in the local
+   `.env`. Never repoint the production app's webhook at smee.
+1. **`dependabot-shepherd/.env`** — the (dev) app's credentials. If missing,
+   the app has never been registered on this machine — stop and follow the
+   Setup section of `dependabot-shepherd/README.md` instead of guessing.
 2. **`gh` authenticated** with push access to `bostonaholic/shepherd-sandbox`.
 3. **App installed on the sandbox repo**
    (<https://github.com/settings/installations>).
