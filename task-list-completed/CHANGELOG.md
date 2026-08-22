@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-22
+
 ### Fixed
 
 - The app icon no longer bakes in its own corner radius. GitHub rounds
