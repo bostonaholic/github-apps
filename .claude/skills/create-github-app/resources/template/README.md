@@ -58,6 +58,12 @@ builds for commits that don't touch this app.
 - **Health probes** (no code): `GET /` serves the static landing page
   (DNS/TLS); `GET /api/github/webhooks` returns 404 JSON from a healthy
   function — a 500 there means bad credentials in the Vercel env.
+- **Monitoring**: webhook health lives in the Vercel dashboard under the
+  project's **Observability** (invocations, errors, duration) and **Logs**
+  tabs — Web Analytics never sees webhook POSTs. The landing page loads the
+  Web Analytics snippet (`/_vercel/insights/script.js`); enable Web
+  Analytics on the new Vercel project (dashboard → **Analytics**) so page
+  visits start collecting — until then the script 404s harmlessly.
 - The GitHub App registration's webhook URL points at
   `https://__APP_NAME__.bostonaholic.dev/api/github/webhooks`.
 - **Rollback**: repoint the webhook URL back at the smee channel kept as
