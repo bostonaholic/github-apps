@@ -4,23 +4,34 @@
 # Opens a real PR in the sandbox repo and drives it through the full task
 # list lifecycle, asserting the commit status and sticky comment after each
 # mutation. Requires: gh (authenticated with access to the sandbox repo),
-# the app server running locally with webhook delivery connected, and the
-# app installed on the sandbox repo.
+# a registered app (.env present), and the app installed on the sandbox repo.
+#
+# The app server does not need to be running: the script builds and starts
+# it, waits for webhook delivery to connect, and stops it on exit. A server
+# already listening on :3000 is reused instead and left running (it may be
+# running stale code).
 #
 # The PR and branch are cleaned up on exit (pass or fail); the closed PR
 # remains in the sandbox for inspection.
 set -euo pipefail
+cd "$(dirname "$0")"
 
 REPO="${E2E_REPO:-bostonaholic/task-list-sandbox}"
 POLL_TIMEOUT="${E2E_POLL_TIMEOUT:-90}"
 
 BRANCH="e2e-$(date +%s)"
 PR_NUMBER=""
+SERVER_PID=""
+SERVER_LOG=""
 
 log() { printf '%s\n' "$*"; }
 fail() {
   log "FAIL: $*"
   [[ -n "$PR_NUMBER" ]] && log "inspect: https://github.com/$REPO/pull/$PR_NUMBER (will be closed)"
+  if [[ -n "$SERVER_LOG" ]]; then
+    log "-- app server log (tail) --"
+    tail -20 "$SERVER_LOG" || true
+  fi
   exit 1
 }
 
@@ -30,8 +41,32 @@ cleanup() {
   fi
   # covers a setup failure after the branch exists but before the PR does
   gh api -X DELETE "repos/$REPO/git/refs/heads/$BRANCH" >/dev/null 2>&1 || true
+  # only stop a server this script started
+  if [[ -n "$SERVER_PID" ]]; then
+    kill "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
+
+start_server() {
+  [[ -f .env ]] || fail ".env is missing — the app has never been registered (see README Setup)"
+  log "  building and starting the app server"
+  npm run build >/dev/null
+  SERVER_LOG=$(mktemp -t task-list-e2e-server)
+  node_modules/.bin/probot run ./lib/index.js >"$SERVER_LOG" 2>&1 &
+  SERVER_PID=$!
+  local deadline=$(( $(date +%s) + 30 ))
+  while (( $(date +%s) < deadline )); do
+    if grep -q 'Connected to https://smee.io' "$SERVER_LOG"; then
+      log "  server up (pid $SERVER_PID), webhook proxy connected"
+      return 0
+    fi
+    kill -0 "$SERVER_PID" 2>/dev/null || fail "app server exited during startup"
+    sleep 1
+  done
+  fail "app server did not connect to the webhook proxy within 30s"
+}
 
 # Poll until the task-list-completed status on the sha matches the expected
 # state and description, or time out.
@@ -57,10 +92,13 @@ sticky_comment() {
 }
 
 log "== preflight"
-curl -s -o /dev/null http://localhost:3000 \
-  || fail "app server is not listening on localhost:3000 — run 'npm start' in task-list-completed/"
 gh api "repos/$REPO" --jq .full_name >/dev/null \
   || fail "cannot reach $REPO with gh"
+if curl -s -o /dev/null http://localhost:3000; then
+  log "  reusing the already-running app server on :3000 (may not reflect current source)"
+else
+  start_server
+fi
 
 log "== setup: open PR with 1 unchecked + 1 checked task"
 BASE_SHA=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)

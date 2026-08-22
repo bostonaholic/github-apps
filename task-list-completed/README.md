@@ -94,9 +94,10 @@ npm run build     # tsc → lib/
 npm start         # probot run ./lib/index.js (set WEBHOOK_PROXY_URL for local webhooks)
 ```
 
-The e2e run needs the server running and the app installed on the sandbox
-repo; the `e2e-task-list-completed` project skill covers preconditions and
-failure triage.
+The e2e run builds and starts the app server itself (stopping it when done;
+an already-running server is reused). It needs `.env` and the app installed
+on the sandbox repo; the `e2e-task-list-completed` project skill covers
+preconditions and failure triage.
 
 Source layout:
 

@@ -24,12 +24,17 @@ right and interpreting failures.
 
 ## Preconditions
 
-1. **App server running locally.** Check with `curl -s -o /dev/null http://localhost:3000 && echo up`.
-   If down: run `npm start` in `task-list-completed/` **in the background** and
-   confirm the log shows `Connected to https://smee.io/...`. This requires
-   `task-list-completed/.env` to exist; if it does not, the app has never been
-   registered — stop and follow the Setup section of
-   `task-list-completed/README.md` instead of guessing.
+The script manages the app server itself: it builds the current source,
+starts the server, waits for the webhook proxy to connect, and stops it on
+exit. If a server is already listening on :3000 it is reused and left
+running — note that a reused server may be running stale code, so restart it
+(or stop it and let the script start one) when testing fresh changes.
+
+What must exist beforehand:
+
+1. **`task-list-completed/.env`** — the app's credentials. If missing, the
+   app has never been registered on this machine — stop and follow the Setup
+   section of `task-list-completed/README.md` instead of guessing.
 2. **`gh` authenticated** with push access to `bostonaholic/task-list-sandbox`.
 3. **App installed on the sandbox repo** (it is, unless someone uninstalled it —
    see <https://github.com/settings/installations>).
@@ -51,10 +56,14 @@ prints its URL for inspection.
 
 ## Interpreting failures
 
-- **Timeout on step 1** (`last seen [none]`): webhooks are not reaching the
-  app — server down, smee channel disconnected, or the app is not installed
-  on the sandbox. Check the `npm start` terminal/log first; a healthy run
-  logs a `POST /api/github/webhooks 200` per event.
+- **Server startup failure**: the script prints the server log tail — a
+  crash on boot points at the code or `.env`; a proxy-connect timeout points
+  at smee.io or the network.
+- **Timeout on step 1** (`last seen [none]`): the server is up but webhooks
+  are not reaching it — smee channel mismatch, or the app is not installed
+  on the sandbox. On failure the script prints its server log tail (a
+  healthy run logs a `POST /api/github/webhooks 200` per event); for a
+  reused server, check that server's own terminal instead.
 - **Timeout on a later step**: the app received earlier events but computed
   the wrong result for this one — a real regression. The `last seen` value
   shows what the app actually reported; compare with the expected column
