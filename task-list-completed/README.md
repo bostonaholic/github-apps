@@ -107,6 +107,11 @@ skips builds for commits that don't touch this app.
 - **Health probes** (no code): `GET /` serves the static landing page
   (DNS/TLS); `GET /api/github/webhooks` returns 404 JSON from a healthy
   function — a 500 there means bad credentials in the Vercel env.
+- **Monitoring**: webhook health lives in the Vercel dashboard under the
+  project's **Observability** (invocations, errors, duration) and **Logs**
+  tabs — Web Analytics never sees webhook POSTs. The landing page loads the
+  Web Analytics snippet (`/_vercel/insights/script.js`; enabled on the
+  project), so page visits appear under the **Analytics** tab.
 - **Timeout ceiling**: functions are capped at 30 seconds (`maxDuration` in
   [`vercel.json`](./vercel.json)). A normal run is a handful of API calls,
   but a PR with hundreds of comments/reviews paginates all four task
