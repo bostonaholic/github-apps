@@ -74,7 +74,10 @@ start_server() {
   fail "app server did not connect to the webhook proxy within 30s"
 }
 
-# open_pr <branch> <title> <draft:true|false> [marker] -> prints PR number
+# open_pr <branch> <title> <draft:true|false> [marker] -> sets OPENED_PR.
+# Deliberately NOT $(...)-substituted: that would run it in a subshell and
+# lose the PR_NUMBERS/BRANCHES bookkeeping that cleanup depends on.
+OPENED_PR=""
 open_pr() {
   local branch="$1" title="$2" draft="$3" marker="${4:-}" base_sha number
   base_sha=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)
@@ -94,7 +97,7 @@ open_pr() {
     -f title="$title" -f head="$branch" -f base=main \
     -f body="e2e run $TS." -F draft="$draft" --jq .number)
   PR_NUMBERS+=("$number")
-  printf '%s' "$number"
+  OPENED_PR="$number"
 }
 
 wait_merged() {
@@ -164,20 +167,23 @@ else
 fi
 
 log "== 1: allowed patch merges once CI is green"
-PR1=$(open_pr "dependabot/npm_and_yarn/e2e-lodash-$TS" \
-  "Bump lodash from 4.17.20 to 4.17.21" false)
+open_pr "dependabot/npm_and_yarn/e2e-lodash-$TS" \
+  "Bump lodash from 4.17.20 to 4.17.21" false
+PR1="$OPENED_PR"
 log "  PR: https://github.com/$REPO/pull/$PR1"
 wait_merged "$PR1"
 
 log "== 2: major is left alone"
-PR2=$(open_pr "dependabot/npm_and_yarn/e2e-react-$TS" \
-  "Bump react from 18.2.0 to 19.0.0" false)
+open_pr "dependabot/npm_and_yarn/e2e-react-$TS" \
+  "Bump react from 18.2.0 to 19.0.0" false
+PR2="$OPENED_PR"
 log "  PR: https://github.com/$REPO/pull/$PR2"
 assert_untouched "$PR2"
 
 log "== 3: ignore label is respected"
-PR3=$(open_pr "dependabot/npm_and_yarn/e2e-vitest-$TS" \
-  "Bump vitest from 3.1.0 to 3.1.1" true)
+open_pr "dependabot/npm_and_yarn/e2e-vitest-$TS" \
+  "Bump vitest from 3.1.0 to 3.1.1" true
+PR3="$OPENED_PR"
 gh api -X POST "repos/$REPO/issues/$PR3/labels" -f "labels[]=shepherd: ignore" >/dev/null
 gh pr ready "$PR3" --repo "$REPO" >/dev/null
 log "  PR: https://github.com/$REPO/pull/$PR3 (draft -> labeled -> ready)"
@@ -185,7 +191,8 @@ assert_untouched "$PR3"
 
 log "== 4: red CI blocks, then merges after the fix"
 BRANCH4="dependabot/npm_and_yarn/e2e-esbuild-$TS"
-PR4=$(open_pr "$BRANCH4" "Bump esbuild from 0.20.0 to 0.20.1" false "e2e-fail-marker")
+open_pr "$BRANCH4" "Bump esbuild from 0.20.0 to 0.20.1" false "e2e-fail-marker"
+PR4="$OPENED_PR"
 HEAD4=$(gh api "repos/$REPO/pulls/$PR4" --jq .head.sha)
 log "  PR: https://github.com/$REPO/pull/$PR4 (head $HEAD4)"
 wait_for_ci_conclusion "$HEAD4" failure
