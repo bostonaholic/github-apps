@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Background: dark GitHub-toned rounded square -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c2431"/>
+      <stop offset="1" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#58a6ff"/>
+      <stop offset="1" stop-color="#1f6feb"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+
+  <!-- Shepherd's crook -->
+  <path d="M300 856 L300 452 C300 336 356 264 442 264 C528 264 584 336 584 412 L584 470"
+        fill="none" stroke="url(#accent)" stroke-width="72" stroke-linecap="round"/>
+
+  <!-- Flock of dependency updates trailing toward the merge badge -->
+  <circle cx="452" cy="528" r="46" fill="#444c56"/>
+  <circle cx="536" cy="584" r="38" fill="#444c56"/>
+  <circle cx="612" cy="632" r="32" fill="#444c56"/>
+
+  <!-- Merge badge, bottom-right -->
+  <circle cx="768" cy="736" r="180" fill="#0d1117"/>
+  <circle cx="768" cy="736" r="148" fill="url(#accent)"/>
+  <!-- git-merge glyph -->
+  <g stroke="#ffffff" fill="none" stroke-width="26">
+    <path d="M716 676 L716 804"/>
+    <path d="M716 688 C716 748 752 772 806 772"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="716" cy="664" r="30"/>
+    <circle cx="716" cy="812" r="30"/>
+    <circle cx="838" cy="772" r="30"/>
+  </g>
+</svg>
