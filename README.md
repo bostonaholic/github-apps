@@ -9,14 +9,16 @@ configuration, and deployment.
 
 | App | Description |
 | --- | ----------- |
-| [dependabot-shepherd](./dependabot-shepherd/) | Approves, auto-merges, and rebases Dependabot PRs per policy. |
-| [task-list-completed](./task-list-completed/) | Blocks PR merges until every markdown checkbox on the PR is ticked. |
+| [dependabot-shepherd](./apps/dependabot-shepherd/) | Approves, auto-merges, and rebases Dependabot PRs per policy. |
+| [task-list-completed](./apps/task-list-completed/) | Blocks PR merges until every markdown checkbox on the PR is ticked. |
 
 ## Layout
 
 ```text
 github-apps/
-├── <app-name>/     # one directory per app, self-contained
+├── apps/<app-name>/   # one directory per app, self-contained
+├── scripts/           # shared maintenance scripts
+├── .claude/skills/    # agent skills for scaffolding, install, and e2e
 └── README.md
 ```
 

@@ -108,7 +108,7 @@ PRs should manage themselves.
 The app is hosted on Vercel at
 <https://dependabot-shepherd.bostonaholic.dev>. Pushing to `main` deploys
 automatically via Vercel's git integration; the Vercel project's Root
-Directory is `dependabot-shepherd`, and `vercel.json`'s `ignoreCommand`
+Directory is `apps/dependabot-shepherd`, and `vercel.json`'s `ignoreCommand`
 skips builds for commits that don't touch this app.
 
 - **Entry point**: [`api/github/webhooks/index.js`](./api/github/webhooks/index.js)
@@ -132,7 +132,7 @@ skips builds for commits that don't touch this app.
   `https://dependabot-shepherd.bostonaholic.dev/api/github/webhooks`.
 - **Rollback**: repoint the webhook URL back at the smee channel kept as
   `WEBHOOK_PROXY_URL` in `.env`
-  (`node --env-file=.env ../scripts/repoint-webhook.mjs <smee-url>`), run
+  (`node --env-file=.env ../../scripts/repoint-webhook.mjs <smee-url>`), run
   `npm start` locally, and redeliver anything missed from the app's Recent
   Deliveries (retained ~30 days).
 

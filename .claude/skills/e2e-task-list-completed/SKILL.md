@@ -8,8 +8,8 @@ description: Run the live end-to-end verification of the task-list-completed Git
 Drives a real PR in `bostonaholic/task-list-sandbox` through the full task
 list lifecycle and asserts the `task-list-completed` commit status and the
 bot's sticky comment after each mutation. The whole run is scripted in
-`task-list-completed/e2e.sh`; this skill is about getting the preconditions
-right and interpreting failures.
+`apps/task-list-completed/e2e.sh`; this skill is about getting the
+preconditions right and interpreting failures.
 
 ## What it verifies
 
@@ -41,9 +41,9 @@ Two modes:
 
 What must exist beforehand:
 
-1. **`task-list-completed/.env`** — the app's credentials. If missing, the
-   app has never been registered on this machine — stop and follow the Setup
-   section of `task-list-completed/README.md` instead of guessing.
+1. **`apps/task-list-completed/.env`** — the app's credentials. If missing,
+   the app has never been registered on this machine — stop and follow the
+   Setup section of `apps/task-list-completed/README.md` instead of guessing.
 2. **`gh` authenticated** with push access to `bostonaholic/task-list-sandbox`.
 3. **App installed on the sandbox repo** (it is, unless someone uninstalled it —
    see <https://github.com/settings/installations>).
@@ -54,8 +54,8 @@ What must exist beforehand:
 ## Run
 
 ```bash
-cd task-list-completed && E2E_HOSTED=1 npm run test:e2e  # against production
-cd task-list-completed && npm run test:e2e               # local server mode
+cd apps/task-list-completed && E2E_HOSTED=1 npm run test:e2e  # against production
+cd apps/task-list-completed && npm run test:e2e               # local server mode
 ```
 
 The script prints one `== step` header per row of the table, each satisfied

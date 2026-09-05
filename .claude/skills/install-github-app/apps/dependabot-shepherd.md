@@ -24,7 +24,7 @@ gh api repos/<owner>/<repo>/contents/.github/workflows --jq length     # 404 →
 **Config file — usually none.** Defaults: merge patch and minor, never
 majors; squash merges; rebase comments on. Only add
 `.github/dependabot-shepherd.yml` for non-default behavior — schema in the
-Configuration section of `dependabot-shepherd/README.md`.
+Configuration section of `apps/dependabot-shepherd/README.md`.
 
 **No status check to require.** The app reports no commit status or check
 run — it is an actor, not a gate. Leave branch protection exactly as it

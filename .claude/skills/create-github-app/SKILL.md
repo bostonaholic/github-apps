@@ -22,7 +22,7 @@ hosting, icons, and e2e come later (Step 8).
 ## Hard constraints — read first
 
 - Never modify `resources/template/` or another app's directory during
-  a scaffold; every write lands under the new `<app>/`.
+  a scaffold; every write lands under the new `apps/<app>/`.
 - Never register, deploy, install, or repoint webhooks — out of scope.
 - `npm install` needs network; offline → stop after Step 4 and say so.
 - If verification fails, the scaffold is wrong — fix it; never skip or
@@ -36,7 +36,7 @@ Derive a kebab-case app name from the description. Rules:
   leading/trailing/double hyphen
 - **at most 21 characters** — the registered name `<app>-bostonaholic`
   must fit GitHub's 34-character app-name limit (`-bostonaholic` is 13)
-- `test -d <app>` at the repo root must fail; an existing directory of
+- `test -d apps/<app>` at the repo root must fail; an existing directory of
   that name → stop and tell the user
 
 Also derive the description phrase: a lowercase verb phrase completing
@@ -52,10 +52,10 @@ and a tag prefix, so renaming later is painful.
 From the repo root:
 
 ```bash
-cp -R .claude/skills/create-github-app/resources/template/ <app>/
-rm -f <app>/TEMPLATE.md   # -f: an `rm -i` alias would silently skip it
-test ! -e <app>/TEMPLATE.md && test -L <app>/CLAUDE.md \
-  && test -L <app>/GEMINI.md && test -x <app>/e2e.sh
+cp -R .claude/skills/create-github-app/resources/template/ apps/<app>/
+rm -f apps/<app>/TEMPLATE.md   # -f: an `rm -i` alias would silently skip it
+test ! -e apps/<app>/TEMPLATE.md && test -L apps/<app>/CLAUDE.md \
+  && test -L apps/<app>/GEMINI.md && test -x apps/<app>/e2e.sh
 ```
 
 The `test` line guards against a skipped TEMPLATE.md deletion and a
@@ -65,9 +65,9 @@ copy that dereferenced the `CLAUDE.md`/`GEMINI.md` symlinks or dropped
 ## Step 3 — mechanical fill
 
 ```bash
-APP='<app>' DESC='<phrase>' find <app> -type f -exec perl -pi -e \
+APP='<app>' DESC='<phrase>' find apps/<app> -type f -exec perl -pi -e \
   's/__APP_NAME__/$ENV{APP}/g; s/__APP_DESCRIPTION__/$ENV{DESC}/g' {} +
-grep -rn '__APP_' <app>/   # gate: must print nothing
+grep -rn '__APP_' apps/<app>/   # gate: must print nothing
 ```
 
 perl `-pi` sidesteps the BSD/GNU `sed -i` split; passing the values via
@@ -78,7 +78,7 @@ continuing.
 
 ## Step 4 — judgment fill
 
-Clear every `TODO(scaffold)` marker; `grep -rn 'TODO(scaffold)' <app>/`
+Clear every `TODO(scaffold)` marker; `grep -rn 'TODO(scaffold)' apps/<app>/`
 must end up empty. From the description:
 
 - **`app.yml`** — the minimum viable `default_events` and
@@ -98,7 +98,7 @@ must end up empty. From the description:
 ## Step 5 — verify
 
 ```bash
-cd <app> && npm install && npm run typecheck && npm test && npm run build
+cd apps/<app> && npm install && npm run typecheck && npm test && npm run build
 ```
 
 All green before proceeding (see Hard constraints).
@@ -110,7 +110,7 @@ Add the app's row (alphabetical) to the `## Apps` table in the root
 
 ## Step 7 — propose the commit
 
-`feat(<app>): scaffold`, covering `<app>/` (including the generated
+`feat(<app>): scaffold`, covering `apps/<app>/` (including the generated
 `package-lock.json`) and the root README row. Propose it; don't commit
 without approval.
 
@@ -119,11 +119,13 @@ without approval.
 End by telling the user what was scaffolded and what intentionally
 remains (don't attempt these):
 
-- Register the app — Setup §1 of `<app>/README.md` (Probot setup flow).
+- Register the app — Setup §1 of `apps/<app>/README.md` (Probot setup flow).
 - Install it on repos — the `install-github-app` skill; add its
-  `apps/<app>.md` per that skill's "Adding a new app" section.
-- Vercel project + DNS — `<app>/README.md`, "Deploy".
-- Icons — `<app>/assets/`; then copy `icon.svg` → `public/favicon.svg`
+  `apps/<app>.md` resource — the file that sits next to
+  `install-github-app`'s SKILL.md, not under the repo's top-level `apps/`
+  — per that skill's "Adding a new app" section.
+- Vercel project + DNS — `apps/<app>/README.md`, "Deploy".
+- Icons — `apps/<app>/assets/`; then copy `icon.svg` → `public/favicon.svg`
   and generate `public/favicon.png` (`sips -Z 64 assets/icon.png --out
   public/favicon.png`) — the page already links both, and Vercel's
   dashboard takes its project icon from the deployed favicon.

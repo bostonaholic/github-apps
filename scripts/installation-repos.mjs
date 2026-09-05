@@ -4,8 +4,8 @@
 // GitHub accepts on PUT /user/installations/{id}/repositories/{repo_id}.
 // Works for any app in this repo — point --env-file at the app's .env:
 //
-//   node --env-file=<app>/.env scripts/installation-repos.mjs                 # list
-//   node --env-file=<app>/.env scripts/installation-repos.mjs --add <owner/repo>
+//   node --env-file=apps/<app>/.env scripts/installation-repos.mjs                 # list
+//   node --env-file=apps/<app>/.env scripts/installation-repos.mjs --add <owner/repo>
 //
 // List output: the installation id on the first line, then one selected
 // repo (owner/name) per line. Prints NOT INSTALLED and exits 1 when the
@@ -17,7 +17,7 @@ let pem = process.env.PRIVATE_KEY ?? "";
 if (pem.includes("\\n")) pem = pem.replaceAll("\\n", "\n");
 if (!appId || !pem) {
   console.error(
-    "APP_ID / PRIVATE_KEY missing — run with --env-file=<app>/.env",
+    "APP_ID / PRIVATE_KEY missing — run with --env-file=apps/<app>/.env",
   );
   process.exit(1);
 }
