@@ -9,15 +9,17 @@ argument-hint: "[app] [owner/repo | repo]"
 Installs one of this monorepo's GitHub Apps on one repo and wires up its
 configuration. Two arguments:
 
-- **app** — a top-level directory in this repo (e.g. `dependabot-shepherd`,
-  `task-list-completed`). It must have a `.env` file and a matching
-  `apps/<app>.md` next to this SKILL.md; the registered GitHub slug is
-  `<app>-bostonaholic`. Unknown app → stop and tell the user.
+- **app** — a directory under `apps/` in this repo (e.g.
+  `dependabot-shepherd`, `task-list-completed`). It must have a `.env` file
+  and a matching `apps/<app>.md` next to this SKILL.md; the registered
+  GitHub slug is `<app>-bostonaholic`. Unknown app → stop and tell the
+  user.
 - **repo** — the target, `owner/repo` or a bare name (bare names mean
   `bostonaholic/<name>`).
 
-**Read `apps/<app>.md` before proceeding** — it holds every app-specific
-step referenced below (validation extras, configuration, verification).
+**Read `apps/<app>.md`, the file next to this SKILL.md, before
+proceeding** — it holds every app-specific step referenced below
+(validation extras, configuration, verification).
 
 ## Hard constraints — read first
 
@@ -25,8 +27,8 @@ step referenced below (validation extras, configuration, verification).
   `bostonaholic`. If the argument names another owner, stop and tell the
   user.
 - **Installation repo selection needs two credentials** (both in
-  `<app>/.env`; never echo them). Reads authenticate as the app — a JWT
-  from `APP_ID` + `PRIVATE_KEY` (we own the apps, so no user token or
+  `apps/<app>/.env`; never echo them). Reads authenticate as the app — a
+  JWT from `APP_ID` + `PRIVATE_KEY` (we own the apps, so no user token or
   device flow). Writes
   (`PUT|DELETE /user/installations/{id}/repositories/{repo_id}`) accept
   only a classic PAT with `repo` scope (`GITHUB_PAT` — user-level, the
@@ -52,13 +54,13 @@ that need the user's OK before installing.
 repo root):
 
 ```bash
-node --env-file=<app>/.env scripts/installation-repos.mjs                 # list: id, then repos
-node --env-file=<app>/.env scripts/installation-repos.mjs --add <owner>/<repo>
+node --env-file=apps/<app>/.env scripts/installation-repos.mjs                 # list: id, then repos
+node --env-file=apps/<app>/.env scripts/installation-repos.mjs --add <owner>/<repo>
 ```
 
 1. List. `NOT INSTALLED` means the app was uninstalled from the account:
-   stop and follow the Setup section of `<app>/README.md`. (The app file
-   records the installation id known at the time of writing; the list
+   stop and follow the Setup section of `apps/<app>/README.md`. (The app
+   file records the installation id known at the time of writing; the list
    always re-resolves it.)
 2. Skip to Step 3 if the repo is already listed.
 3. `--add` the repo — it expects HTTP 204 and re-lists to confirm.
@@ -98,7 +100,8 @@ warnings.
 
 ## Adding a new app
 
-Create `apps/<new-app>.md` alongside the existing ones: record the
-registered slug, hosted URL, and current installation id, then a
-**Validate** / **Configure** / **Verify** section each. No changes to this
-file are needed.
+Create `apps/<new-app>.md` next to this SKILL.md, alongside the existing
+ones — not under the repo's top-level `apps/`. Record the registered slug,
+hosted URL, and current installation id, then a **Validate** /
+**Configure** / **Verify** section each. No changes to this file are
+needed.

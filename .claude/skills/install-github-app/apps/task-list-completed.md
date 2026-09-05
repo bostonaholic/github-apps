@@ -52,6 +52,6 @@ actually blocks merges. On the default branch:
 - Required check: `gh api repos/<owner>/<repo>/branches/<branch>/protection/required_status_checks`
   lists `task-list-completed`.
 - Live behavior (optional, with the user's OK — it opens and closes a real
-  PR in the target repo): `cd task-list-completed && E2E_REPO=<owner>/<repo> npm run test:e2e`
+  PR in the target repo): `cd apps/task-list-completed && E2E_REPO=<owner>/<repo> npm run test:e2e`
   — see the `e2e-task-list-completed` skill for preconditions and failure
   interpretation.

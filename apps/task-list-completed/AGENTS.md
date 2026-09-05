@@ -25,9 +25,9 @@ already listening on :3000 is reused — restart it if it may be running
 stale code. With `E2E_HOSTED=1` it skips the server entirely and asserts
 against the Vercel deployment (which runs the code merged to `main`, not
 the working tree).
-`../.claude/skills/e2e-task-list-completed/SKILL.md` documents preconditions
-and failure triage; do not retry a failed run more than once before
-diagnosing.
+`../../.claude/skills/e2e-task-list-completed/SKILL.md` documents
+preconditions and failure triage; do not retry a failed run more than once
+before diagnosing.
 
 ## Architecture
 

@@ -4,15 +4,17 @@ This file provides guidance to AI coding agents (Claude Code, Codex, Gemini CLI,
 
 ## Repository layout
 
-Monorepo of GitHub Apps. Each app lives in its own directory and is fully
-self-contained: its own `package.json`, dependencies, README, and deployment.
-Run all npm commands from inside the app's directory, not the repo root
-(the root has no `package.json`). Shared code stays out of this repo until at
-least two apps need it.
+Monorepo of GitHub Apps. Each app lives in its own directory under `apps/`
+and is fully self-contained: its own `package.json`, dependencies, README,
+and deployment. Run all npm commands from inside the app's directory
+(`apps/<app>/`), not the repo root (the root has no `package.json`). Shared
+code stays out of this repo until at least two apps need it. `apps/` is a
+path segment only — it never appears in tags, commit scopes, GitHub slugs,
+Vercel project names, or DNS records.
 
 App specifics — commands, architecture, testing — live in each app's own
-documentation (`<app>/README.md` and `<app>/AGENTS.md`). Read those before
-working on an app.
+documentation (`apps/<app>/README.md` and `apps/<app>/AGENTS.md`). Read those
+before working on an app.
 
 New apps are scaffolded by the `create-github-app` skill from its
 bundled template (`.claude/skills/create-github-app/resources/template/`).
@@ -26,12 +28,12 @@ registered from this repo takes the suffix `-bostonaholic`:
 - **Registered name / slug:** `<app>-bostonaholic`, where `<app>` is the
   app's directory name — e.g. `task-list-completed-bostonaholic`,
   installable at `https://github.com/apps/<app>-bostonaholic`.
-- The app's manifest (`<app>/app.yml`) declares the suffixed name, so
+- The app's manifest (`apps/<app>/app.yml`) declares the suffixed name, so
   registration produces it deterministically instead of GitHub prompting
   for a variant.
 - The suffix applies only to the GitHub registration. Everything inside the
-  repo — directory, commit scope, tags, changelog, status context — keeps
-  the bare `<app>` name.
+  repo — directory name, commit scope, tags, changelog, status context —
+  keeps the bare `<app>` name.
 
 ## Hosted deployments
 
@@ -40,8 +42,9 @@ Each app deploys to Vercel at `https://<app>.bostonaholic.dev`:
 - **One Vercel project per app**, named `<app>`, in the **airship-labs**
   team (the account's only team — there is no `bostonaholic` Vercel team,
   and creating one would be a paid Pro plan). Root Directory is the app's
-  directory; pushing to `main` deploys, with `vercel.json`'s
-  `ignoreCommand` skipping builds for commits that don't touch the app.
+  path under `apps/` (`apps/<app>`); pushing to `main` deploys, with
+  `vercel.json`'s `ignoreCommand` skipping builds for commits that don't
+  touch the app.
 - **Entry point** `api/github/webhooks/index.js` wraps the compiled app
   (`lib/index.js`) in Probot's `createNodeMiddleware`; `vercel.json`'s
   `buildCommand` runs `tsc` first. `public/index.html` must exist (Vercel's
@@ -55,7 +58,7 @@ Each app deploys to Vercel at `https://<app>.bostonaholic.dev`:
   `https://<app>.bostonaholic.dev/api/github/webhooks`. To inspect or
   repoint it (including rolling back to the smee channel kept as
   `WEBHOOK_PROXY_URL` in the app's `.env`):
-  `node --env-file=<app>/.env scripts/repoint-webhook.mjs [--dry-run|<url>]`
+  `node --env-file=apps/<app>/.env scripts/repoint-webhook.mjs [--dry-run|<url>]`
   — or the app's settings page under <https://github.com/settings/apps>.
 
 ## Commits

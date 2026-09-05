@@ -2,8 +2,8 @@
 // as the app (JWT signed with its private key). Works for any app in this
 // repo — point --env-file at the app's .env:
 //
-//   node --env-file=<app>/.env scripts/repoint-webhook.mjs --dry-run
-//   node --env-file=<app>/.env scripts/repoint-webhook.mjs <new-webhook-url>
+//   node --env-file=apps/<app>/.env scripts/repoint-webhook.mjs --dry-run
+//   node --env-file=apps/<app>/.env scripts/repoint-webhook.mjs <new-webhook-url>
 //
 // --dry-run (or no argument) prints the current config and exits. The
 // webhook secret is never changed — only the URL.
@@ -14,7 +14,7 @@ let pem = process.env.PRIVATE_KEY ?? "";
 if (pem.includes("\\n")) pem = pem.replaceAll("\\n", "\n");
 if (!appId || !pem) {
   console.error(
-    "APP_ID / PRIVATE_KEY missing — run with --env-file=<app>/.env",
+    "APP_ID / PRIVATE_KEY missing — run with --env-file=apps/<app>/.env",
   );
   process.exit(1);
 }

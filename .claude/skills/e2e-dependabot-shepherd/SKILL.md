@@ -7,8 +7,9 @@ description: Run the live end-to-end verification of the dependabot-shepherd Git
 
 Simulates Dependabot PRs in `bostonaholic/shepherd-sandbox` (no API can make
 real Dependabot open one on demand) and asserts the app's merge, skip, and
-rebase behavior. The whole run is scripted in `dependabot-shepherd/e2e.sh`;
-this skill covers preconditions, one-time sandbox setup, and failure triage.
+rebase behavior. The whole run is scripted in
+`apps/dependabot-shepherd/e2e.sh`; this skill covers preconditions,
+one-time sandbox setup, and failure triage.
 
 ## What it verifies
 
@@ -24,11 +25,11 @@ this skill covers preconditions, one-time sandbox setup, and failure triage.
 
 The script's PRs are authored by the `gh` user, not `dependabot[bot]`, so it
 starts the app server with `E2E_ALLOW_AUTHOR=<gh login>` — the one
-deliberate test seam (see `dependabot-shepherd/AGENTS.md`). If a server is
-already listening on :3000 it is reused; that server must itself have been
-started with `E2E_ALLOW_AUTHOR` set to the same login, or every scenario
-times out with the app logging "not merging" skips. When in doubt, stop the
-running server and let the script start its own.
+deliberate test seam (see `apps/dependabot-shepherd/AGENTS.md`). If a server
+is already listening on :3000 it is reused; that server must itself have
+been started with `E2E_ALLOW_AUTHOR` set to the same login, or every
+scenario times out with the app logging "not merging" skips. When in doubt,
+stop the running server and let the script start its own.
 
 ## Preconditions
 
@@ -41,9 +42,10 @@ running server and let the script start its own.
    the empty-`.env` setup flow, installed only on the sandbox) whose
    webhook points at a smee channel, with its credentials in the local
    `.env`. Never repoint the production app's webhook at smee.
-1. **`dependabot-shepherd/.env`** — the (dev) app's credentials. If missing,
-   the app has never been registered on this machine — stop and follow the
-   Setup section of `dependabot-shepherd/README.md` instead of guessing.
+1. **`apps/dependabot-shepherd/.env`** — the (dev) app's credentials. If
+   missing, the app has never been registered on this machine — stop and
+   follow the Setup section of `apps/dependabot-shepherd/README.md` instead
+   of guessing.
 2. **`gh` authenticated** with push access to `bostonaholic/shepherd-sandbox`.
 3. **App installed on the sandbox repo**
    (<https://github.com/settings/installations>).
@@ -83,7 +85,7 @@ notification setting.
 ## Run
 
 ```bash
-cd dependabot-shepherd && npm run test:e2e
+cd apps/dependabot-shepherd && npm run test:e2e
 ```
 
 The script prints one `== step` header per scenario and ends with
