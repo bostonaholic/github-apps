@@ -1,0 +1,40 @@
+# Dependabot configuration for this monorepo.
+#
+# Every app under apps/ is a self-contained npm package with its own
+# package.json and package-lock.json. The repo root is not a package (there
+# is no root package.json), so there is nothing for a "/" entry to update:
+# updates must target each app directory explicitly. One entry per app also
+# lets each PR carry that app's Conventional Commits scope, per the root
+# AGENTS.md.
+#
+# When adding an app, add a matching `npm` entry below.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/apps/dependabot-shepherd"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(dependabot-shepherd)"
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    directory: "/apps/task-list-completed"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(task-list-completed)"
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

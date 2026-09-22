@@ -19,6 +19,16 @@ before working on an app.
 New apps are scaffolded by the `create-github-app` skill from its
 bundled template (`.claude/skills/create-github-app/resources/template/`).
 
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens weekly npm updates with one
+`npm` entry per app directory (`/apps/<app>`). The repo root is not a
+package, so there is no `/` entry, and the scaffold template is not
+scanned. Each entry uses the app's Conventional Commits scope
+(`chore(<app>)`) and groups minor and patch updates into one PR, leaving
+majors and security updates as individual PRs. Adding an app means adding
+a matching entry.
+
 ## App registration names
 
 GitHub App names are globally unique across all of GitHub (not namespaced
