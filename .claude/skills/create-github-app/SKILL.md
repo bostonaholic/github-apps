@@ -22,7 +22,9 @@ hosting, icons, and e2e come later (Step 8).
 ## Hard constraints — read first
 
 - Never modify `resources/template/` or another app's directory during
-  a scaffold; every write lands under the new `apps/<app>/`.
+  a scaffold; every write lands under the new `apps/<app>/` or the shared
+  registration files (root `README.md` and `.github/dependabot.yml`, both
+  Step 6).
 - Never register, deploy, install, or repoint webhooks — out of scope.
 - `npm install` needs network; offline → stop after Step 4 and say so.
 - If verification fails, the scaffold is wrong — fix it; never skip or
@@ -103,16 +105,20 @@ cd apps/<app> && npm install && npm run typecheck && npm test && npm run build
 
 All green before proceeding (see Hard constraints).
 
-## Step 6 — register in docs
+## Step 6 — register in docs and Dependabot
 
-Add the app's row (alphabetical) to the `## Apps` table in the root
-`README.md`.
+- Add the app's row (alphabetical) to the `## Apps` table in the root
+  `README.md`.
+- Add an `npm` entry for `/apps/<app>` to `.github/dependabot.yml`,
+  copying an existing entry and swapping the directory and
+  `chore(<app>)` commit scope. The root is not a package, so there is no
+  `/` entry; the template under `.claude/` is deliberately not scanned.
 
 ## Step 7 — propose the commit
 
 `feat(<app>): scaffold`, covering `apps/<app>/` (including the generated
-`package-lock.json`) and the root README row. Propose it; don't commit
-without approval.
+`package-lock.json`), the root README row, and the `.github/dependabot.yml`
+entry. Propose it; don't commit without approval.
 
 ## Step 8 — report follow-ups
 
