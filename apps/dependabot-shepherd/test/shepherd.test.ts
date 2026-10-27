@@ -5,9 +5,12 @@ import { reconcile } from "../src/shepherd.js";
 interface FakeOptions {
   pr?: Record<string, unknown>;
   reviews?: Record<string, unknown>[];
-  checkRuns?: { status: string; conclusion: string | null }[];
-  combinedStatus?: { state: string; total_count: number };
-  autoMergeError?: string;
+  checkRuns?: { name?: string; status: string; conclusion: string | null }[];
+  combinedStatus?: {
+    state: string;
+    total_count: number;
+    statuses?: { context: string; state: string }[];
+  };
   mergeError?: number;
   // Repo has workflow files (default: none — .github/workflows 404s).
   workflows?: boolean;
@@ -17,7 +20,6 @@ function fakeOctokit(options: FakeOptions = {}) {
   const calls = {
     gets: 0,
     approvals: [] as Record<string, unknown>[],
-    graphql: [] as Record<string, unknown>[],
     merges: [] as Record<string, unknown>[],
     paginated: [] as string[],
   };
@@ -69,11 +71,6 @@ function fakeOctokit(options: FakeOptions = {}) {
         },
       },
     },
-    graphql: async (_query: string, vars: Record<string, unknown>) => {
-      calls.graphql.push(vars);
-      if (options.autoMergeError) throw new Error(options.autoMergeError);
-      return {};
-    },
     paginate: async (route: unknown) => {
       calls.paginated.push(route as string);
       if (route === "listReviews") return options.reviews ?? [];
@@ -99,13 +96,14 @@ async function run(
 }
 
 describe("reconcile", () => {
-  it("approves and enables auto-merge for an allowed update", async () => {
+  it("approves and squash-merges an allowed update, pinned to the head sha", async () => {
     const calls = await run();
     expect(calls.approvals).toHaveLength(1);
     expect(calls.approvals[0].event).toBe("APPROVE");
     expect(calls.approvals[0].body).toContain("lodash 4.17.20 → 4.17.21");
-    expect(calls.graphql).toEqual([{ id: "PR_1", mergeMethod: "SQUASH" }]);
-    expect(calls.merges).toHaveLength(0);
+    expect(calls.merges).toEqual([
+      expect.objectContaining({ merge_method: "squash", sha: "abc123" }),
+    ]);
   });
 
   it("does not stack approvals on the same head commit", async () => {
@@ -115,7 +113,7 @@ describe("reconcile", () => {
       ],
     });
     expect(calls.approvals).toHaveLength(0);
-    expect(calls.graphql).toHaveLength(1);
+    expect(calls.merges).toHaveLength(1);
   });
 
   it("re-approves after the head moved", async () => {
@@ -129,79 +127,149 @@ describe("reconcile", () => {
 
   it("uses the configured merge method", async () => {
     const calls = await run({}, { config: normalizeConfig({ merge_method: "rebase" }) });
-    expect(calls.graphql[0].mergeMethod).toBe("REBASE");
+    expect(calls.merges[0].merge_method).toBe("rebase");
+    expect(calls.merges[0].sha).toBe("abc123");
   });
 
-  it("merges directly when auto-merge is not allowed and checks are green", async () => {
+  it("merges when checks are green", async () => {
     const calls = await run({
-      autoMergeError: "Auto merge is not allowed for this repository",
-      checkRuns: [{ status: "completed", conclusion: "success" }],
+      checkRuns: [{ name: "ci", status: "completed", conclusion: "success" }],
     });
     expect(calls.merges).toEqual([
       expect.objectContaining({ merge_method: "squash", sha: "abc123" }),
     ]);
   });
 
-  it("merges a repo with no CI at all (clean status, zero checks, no workflows)", async () => {
-    const calls = await run({ autoMergeError: "Pull request is in clean status" });
+  it("treats skipped checks as green", async () => {
+    const calls = await run({
+      checkRuns: [
+        { name: "ci", status: "completed", conclusion: "skipped" },
+        { name: "lint", status: "completed", conclusion: "success" },
+      ],
+    });
     expect(calls.merges).toHaveLength(1);
   });
 
-  it("waits when checks have not appeared yet but the repo has workflows", async () => {
+  it("ignores the Cursor Security Agent check that never reports", async () => {
     const calls = await run({
-      autoMergeError: "Pull request is in clean status",
+      checkRuns: [
+        { name: "ci", status: "completed", conclusion: "success" },
+        {
+          name: "Cursor Security Agent: Security Reviewer",
+          status: "queued",
+          conclusion: null,
+        },
+      ],
+    });
+    expect(calls.merges).toHaveLength(1);
+  });
+
+  it("ignores a failed Cursor Security Agent check", async () => {
+    const calls = await run({
+      checkRuns: [
+        { name: "ci", status: "completed", conclusion: "success" },
+        {
+          name: "Cursor Security Agent: Security Reviewer",
+          status: "completed",
+          conclusion: "failure",
+        },
+      ],
+    });
+    expect(calls.merges).toHaveLength(1);
+  });
+
+  it("ignores that check when it is posted as a commit status", async () => {
+    const calls = await run({
+      checkRuns: [{ name: "ci", status: "completed", conclusion: "success" }],
+      combinedStatus: {
+        state: "pending",
+        total_count: 2,
+        statuses: [
+          { context: "ci/circleci", state: "success" },
+          { context: "Cursor Security Agent: Security Reviewer", state: "pending" },
+        ],
+      },
+    });
+    expect(calls.merges).toHaveLength(1);
+  });
+
+  it("still waits for real CI when the only check is the ignored one", async () => {
+    const calls = await run({
       workflows: true,
+      checkRuns: [
+        {
+          name: "Cursor Security Agent: Security Reviewer",
+          status: "queued",
+          conclusion: null,
+        },
+      ],
     });
     expect(calls.merges).toHaveLength(0);
   });
 
+  it("merges a repo with no CI at all (zero checks, no workflows)", async () => {
+    const calls = await run();
+    expect(calls.merges).toHaveLength(1);
+  });
+
+  it("waits when checks have not appeared yet but the repo has workflows", async () => {
+    const calls = await run({ workflows: true });
+    expect(calls.merges).toHaveLength(0);
+    expect(calls.approvals).toHaveLength(1);
+  });
+
   it("waits while checks are still running", async () => {
     const calls = await run({
-      autoMergeError: "Pull request is in clean status",
-      checkRuns: [{ status: "in_progress", conclusion: null }],
+      checkRuns: [{ name: "ci", status: "in_progress", conclusion: null }],
     });
     expect(calls.merges).toHaveLength(0);
   });
 
   it("never merges over red check runs", async () => {
     const calls = await run({
-      autoMergeError: "Pull request is in clean status",
-      checkRuns: [{ status: "completed", conclusion: "failure" }],
+      checkRuns: [{ name: "ci", status: "completed", conclusion: "failure" }],
     });
     expect(calls.merges).toHaveLength(0);
   });
 
   it("never merges over a red combined status", async () => {
     const calls = await run({
-      autoMergeError: "Pull request is in clean status",
       combinedStatus: { state: "failure", total_count: 2 },
     });
     expect(calls.merges).toHaveLength(0);
   });
 
-  it("stops when auto-merge is already enabled", async () => {
-    const calls = await run({ autoMergeError: "Auto merge already enabled" });
-    expect(calls.merges).toHaveLength(0);
-    expect(calls.paginated).not.toContain("listForRef");
-  });
-
-  it("stops on an unrecognized auto-merge error", async () => {
-    const calls = await run({ autoMergeError: "Something exploded" });
+  it("does not let an ignored status hide a red one", async () => {
+    const calls = await run({
+      combinedStatus: {
+        state: "failure",
+        total_count: 2,
+        statuses: [
+          { context: "ci/circleci", state: "failure" },
+          { context: "Cursor Security Agent: Security Reviewer", state: "pending" },
+        ],
+      },
+    });
     expect(calls.merges).toHaveLength(0);
   });
 
   it("swallows a merge race (405/409)", async () => {
-    const calls = await run({
-      autoMergeError: "Pull request is in clean status",
-      mergeError: 409,
-    });
+    const calls = await run({ mergeError: 409 });
     expect(calls.merges).toHaveLength(1);
   });
 
-  it("leaves majors alone", async () => {
+  it("merges majors", async () => {
     const calls = await run({ pr: { title: "Bump react from 18.0.0 to 19.0.0" } });
+    expect(calls.approvals).toHaveLength(1);
+    expect(calls.merges).toHaveLength(1);
+  });
+
+  it("leaves unknown bumps alone", async () => {
+    const calls = await run({
+      pr: { title: "Bump actions/checkout from abcdef to 123456" },
+    });
     expect(calls.approvals).toHaveLength(0);
-    expect(calls.graphql).toHaveLength(0);
+    expect(calls.merges).toHaveLength(0);
   });
 
   it("respects the ignore label", async () => {
@@ -219,7 +287,7 @@ describe("reconcile", () => {
       reviews: [{ user: { login: "alice" }, state: "CHANGES_REQUESTED", commit_id: "x" }],
     });
     expect(calls.approvals).toHaveLength(0);
-    expect(calls.graphql).toHaveLength(0);
+    expect(calls.merges).toHaveLength(0);
   });
 
   it("ignores PRs not authored by dependabot", async () => {

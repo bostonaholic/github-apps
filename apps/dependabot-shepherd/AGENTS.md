@@ -28,8 +28,11 @@ Strict layering, pure core with I/O at the edges:
 - `src/policy.ts` — pure: config defaults, per-package glob overrides, and
   `decide()` — whether a PR's updates clear the policy; owns `IGNORE_LABEL`
 - `src/shepherd.ts` — orchestration: `reconcile()` fetches the PR, guards on
-  authorship, ensures a single approval at the head SHA, then the auto-merge
-  ladder (native auto-merge → direct merge on green fallback)
+  authorship, ensures a single approval at the head SHA, then merges
+  directly (`pulls.merge`, sha-pinned, configured method) once every check
+  run and status on the head is green. Skipped checks pass. `Cursor Security
+  Agent: Security Reviewer` is ignored — it never reports on Dependabot PRs,
+  which is why native auto-merge is not used.
 - `src/rebase.ts` — orchestration: on default-branch pushes, comments
   `@dependabot rebase` on stale Dependabot PRs, deduped per head commit
 - `src/index.ts` — Probot event wiring only; reads
@@ -47,9 +50,11 @@ Behavioral invariants to preserve:
   (a Bot) **and** the head ref starts with `dependabot/`. The single
   exception is the env-gated e2e seam: `E2E_ALLOW_AUTHOR=<login>` accepts
   that author too. It must never be set in production.
-- Unparseable titles and `unknown` bumps are treated like majors: skip with
-  a warning log, no comment, no status. The app is an actor, not a gate —
-  when disabled or unsure it does nothing at all, so it can never wedge a PR.
+- The default ceiling is major, so patch, minor, and major updates merge.
+  Unparseable titles and `unknown` bumps are skipped with a warning log,
+  no comment, no status — `unknown` outranks every ceiling. The app is an
+  actor, not a gate — when disabled or unsure it does nothing at all, so
+  it can never wedge a PR.
 - Approvals are idempotent per head SHA. The app is not subscribed to
   `pull_request_review` or `issue_comment`, so its own approvals and rebase
   comments cannot re-trigger it.

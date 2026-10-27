@@ -17,7 +17,8 @@ export interface ShepherdConfig {
 
 export const DEFAULTS: ShepherdConfig = {
   enabled: true,
-  merge: "minor",
+  // Majors are included. Unknown bumps still outrank every ceiling.
+  merge: "major",
   security: "minor",
   merge_method: "squash",
   rebase: true,

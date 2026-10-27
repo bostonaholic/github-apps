@@ -3,12 +3,11 @@
 A GitHub App that makes Dependabot pull requests zero-touch.
 
 When Dependabot opens a PR, the app parses what's being updated and how big
-the version jump is. If the update clears your policy (by default: patch and
-minor updates, never majors), the app approves the PR and enables GitHub's
-native auto-merge so it lands as soon as required checks pass. On repos
-without branch protection, it merges directly once checks are green. And
-whenever the default branch moves, the app asks Dependabot to rebase any of
-its open PRs that fell behind.
+the version jump is. If the update clears your policy (by default: patch,
+minor, and major), the app approves the PR and merges it directly once every
+check run and status on the head commit is green. And whenever the default
+branch moves, the app asks Dependabot to rebase any of its open PRs that
+fell behind.
 
 Install it once on your account and every repo's dependency updates take
 care of themselves — no per-repo workflow files.
@@ -25,9 +24,9 @@ from the PR title and body:
   group is evaluated; all must clear the policy
 
 The bump is compared against the policy ceiling. Anything the app cannot
-parse confidently (SHA-pinned actions, pre-releases) is treated like a major:
-left alone for a human. Security updates (PRs fixing a CVE/GHSA advisory)
-get their own ceiling so you can fast-track them independently.
+parse confidently (SHA-pinned actions, pre-releases) is left alone for a
+human. Security updates (PRs fixing a CVE/GHSA advisory) get their own
+ceiling so you can fast-track them independently.
 
 A PR is only ever touched when it is authored by `dependabot[bot]`, its
 branch starts with `dependabot/`, it is not a draft, and no human has
@@ -36,13 +35,17 @@ requested changes.
 ## The merge
 
 1. The app approves the PR (once per head commit — a rebase re-approves).
-2. It enables **native auto-merge** with your configured merge method.
-   GitHub then merges when all *required* checks pass — branch protection
-   stays fully in charge.
-3. If the repo can't use auto-merge (no branch protection requiring
-   anything), the app checks the PR's check runs and commit statuses itself
-   and merges directly when everything is green — or waits for the next
-   check event if something is still running.
+2. It reads check runs and commit statuses on the head. Every one of them
+   must be green. Skipped and neutral checks count as green. `Cursor
+   Security Agent: Security Reviewer` is ignored in every state, because it
+   does not report on Dependabot PRs. Anything still running waits for the
+   next check event.
+3. It merges directly with `pulls.merge`, pinned to that head SHA, using
+   the configured method (squash by default). GitHub auto-merge is not
+   used: it waits for every ruleset-required check, and the Cursor check
+   never runs on these PRs, so auto-merge never fires. The app is an
+   always-bypass actor on those rulesets, which is what lets the merge API
+   succeed without that check.
 
 > **Note:** on a repo with *no CI at all* (no workflow files, no commit
 > statuses), an allowed update merges immediately after approval.
@@ -69,7 +72,7 @@ default can live in the org's `.github` repo). All fields optional:
 
 ```yaml
 enabled: true          # false → the app does nothing on this repo
-merge: minor           # auto-merge ceiling: none | patch | minor | major
+merge: major           # merge ceiling: none | patch | minor | major
 security: minor        # ceiling for security-advisory PRs
 merge_method: squash   # squash | merge | rebase
 rebase: true           # false → never comment "@dependabot rebase"

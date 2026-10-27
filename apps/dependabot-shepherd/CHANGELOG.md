@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Dependabot PRs are merged by the app once the head commit is green.
+  Enabling GitHub auto-merge never landed them: org rulesets require
+  `Cursor Security Agent: Security Reviewer`, that check does not run on
+  Dependabot PRs, and auto-merge waits for it forever. The merge is pinned
+  to the head SHA. Skipped checks count as green, and that Cursor check is
+  ignored.
+
+### Changed
+
+- The default merge ceiling is major, so major updates merge along with
+  patch and minor. Unparseable titles and unknown bumps are still left
+  alone. A repo can set a lower ceiling in `.github/dependabot-shepherd.yml`.
+
 ## [0.1.1] - 2026-08-22
 
 ### Fixed
