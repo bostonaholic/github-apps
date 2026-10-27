@@ -1,8 +1,12 @@
 // Orchestration: decide whether a Dependabot PR may merge and drive it
-// there — approve once per head commit, enable native auto-merge, or fall
-// back to merging directly once checks are green on repos where
-// auto-merge cannot be enabled. Idempotent: every webhook re-enters here
-// and re-running always converges.
+// there — approve once per head commit, then merge directly once every
+// check run and status on the head is green. Idempotent: every webhook
+// re-enters here and re-running always converges.
+//
+// Native auto-merge is not used. Org rulesets require "Cursor Security
+// Agent: Security Reviewer", that check never runs on Dependabot PRs, and
+// GitHub waits for it forever. This app is an always-bypass actor on those
+// rulesets, so pulls.merge succeeds without the missing check.
 
 import type { Context } from "probot";
 import {
@@ -29,6 +33,19 @@ export interface Logger {
 
 const NOOP_LOG: Logger = { info() {}, warn() {}, error() {} };
 
+// Required by org rulesets and pinned to the Cursor app (integration
+// 1210556). It never reports on Dependabot PRs. Ignored in every state so
+// a queued or failed placeholder cannot block the merge.
+const IGNORED_CHECK_NAMES = new Set(["Cursor Security Agent: Security Reviewer"]);
+
+// Skipped is success: a job skipped by `if:` did not fail. Neutral is the
+// same idea for checks that ran without a pass/fail verdict.
+const PASSING_CONCLUSIONS = new Set(["success", "neutral", "skipped"]);
+
+function isIgnoredCheck(name: string | null | undefined): boolean {
+  return name != null && IGNORED_CHECK_NAMES.has(name);
+}
+
 export interface ReconcileParams {
   owner: string;
   repo: string;
@@ -39,16 +56,6 @@ export interface ReconcileParams {
   allowAuthor?: string;
   log?: Logger;
 }
-
-// "method" is reserved by octokit's graphql() as a request option, so the
-// variable must be named something else.
-const ENABLE_AUTO_MERGE = `
-  mutation($id: ID!, $mergeMethod: PullRequestMergeMethod!) {
-    enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $mergeMethod }) {
-      clientMutationId
-    }
-  }
-`;
 
 export async function reconcile(
   octokit: Octokit,
@@ -105,26 +112,6 @@ export async function reconcile(
     });
   }
 
-  try {
-    await octokit.graphql(ENABLE_AUTO_MERGE, {
-      id: pr.node_id,
-      mergeMethod: config.merge_method.toUpperCase(),
-    });
-    log.info(`${tag}: auto-merge enabled`);
-    return;
-  } catch (error) {
-    const outcome = classifyAutoMergeError(errorMessage(error));
-    if (outcome === "done") {
-      log.info(`${tag}: auto-merge already enabled`);
-      return;
-    }
-    if (outcome === "error") {
-      log.error(`${tag}: enabling auto-merge failed — ${errorMessage(error)}`);
-      return;
-    }
-    // "fallback": this repo can't use auto-merge; merge directly on green.
-  }
-
   const rollup = await checksRollup(octokit, { owner, repo, ref: pr.head.sha });
   if (rollup === "pending") {
     // A later check_suite/status event re-enters reconcile.
@@ -141,6 +128,7 @@ export async function reconcile(
       owner,
       repo,
       pull_number,
+      // Default is squash; a repo config may select merge or rebase.
       merge_method: config.merge_method,
       // Refuse the merge if the head moved since we looked.
       sha: pr.head.sha,
@@ -158,25 +146,35 @@ export async function reconcile(
   }
 }
 
-type AutoMergeOutcome = "done" | "fallback" | "error";
-
-// The enablePullRequestAutoMerge mutation fails in distinguishable ways:
-// "already enabled" means we're done; "clean status" (nothing blocks the
-// merge) and "not allowed" (repo has auto-merge switched off / no branch
-// protection) mean we must merge directly.
-function classifyAutoMergeError(message: string): AutoMergeOutcome {
-  if (/already\s+enabled/i.test(message)) return "done";
-  if (/clean status|not allowed|auto[- ]?merge is not enabled/i.test(message)) {
-    return "fallback";
-  }
-  return "error";
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
 type Rollup = "green" | "pending" | "red";
+
+// The combined-status endpoint defaults to 30 per page and is not a
+// Link-header list, so octokit.paginate will not walk it. Fetch every page.
+const STATUS_PAGE_SIZE = 100;
+
+async function listCombinedStatuses(
+  octokit: Octokit,
+  { owner, repo, ref }: { owner: string; repo: string; ref: string },
+) {
+  const statuses = [];
+  for (let page = 1; ; page++) {
+    const { data } = await octokit.rest.repos.getCombinedStatusForRef({
+      owner,
+      repo,
+      ref,
+      per_page: STATUS_PAGE_SIZE,
+      page,
+    });
+    statuses.push(...data.statuses);
+    if (data.statuses.length < STATUS_PAGE_SIZE || statuses.length >= data.total_count) {
+      return statuses;
+    }
+  }
+}
 
 // Combined verdict over check runs and (legacy) commit statuses on a ref.
 // No checks and no statuses at all counts as green ONLY on a repo with no
@@ -195,28 +193,28 @@ async function checksRollup(
   });
 
   let pending = false;
+  let sawCheck = false;
   for (const run of runs) {
+    if (isIgnoredCheck(run.name)) continue;
+    sawCheck = true;
     if (run.status !== "completed") {
       pending = true;
       continue;
     }
-    if (!["success", "neutral", "skipped"].includes(run.conclusion ?? "")) {
-      return "red";
-    }
+    if (!PASSING_CONCLUSIONS.has(run.conclusion ?? "")) return "red";
   }
 
-  const { data: combined } = await octokit.rest.repos.getCombinedStatusForRef({
-    owner,
-    repo,
-    ref,
-  });
-  if (combined.total_count > 0) {
-    if (combined.state === "pending") pending = true;
-    else if (combined.state !== "success") return "red";
+  const allStatuses = await listCombinedStatuses(octokit, { owner, repo, ref });
+  const statuses = allStatuses.filter((status) => !isIgnoredCheck(status.context));
+  const sawStatus = statuses.length > 0;
+  for (const status of statuses) {
+    if (status.state === "pending") pending = true;
+    else if (status.state !== "success") return "red";
   }
 
-  if (runs.length === 0 && combined.total_count === 0) {
+  if (!sawCheck && !sawStatus) {
     // A later check_suite/status event re-enters when CI shows up.
+    // Ignored checks do not count — they never report on these PRs.
     return (await hasWorkflows(octokit, owner, repo)) ? "pending" : "green";
   }
 

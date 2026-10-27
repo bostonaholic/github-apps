@@ -5,8 +5,8 @@
 name: dependabot-shepherd-bostonaholic
 url: https://github.com/bostonaholic/github-apps
 description: >-
-  Zero-touch Dependabot: approves and auto-merges patch/minor updates per
-  policy, and keeps open Dependabot PRs rebased against the default branch.
+  Zero-touch Dependabot: approves and merges updates per policy (majors
+  included), and keeps open Dependabot PRs rebased against the default branch.
 
 default_events:
   - pull_request
@@ -15,7 +15,7 @@ default_events:
   - push
 
 default_permissions:
-  # Approve reviews, merge, and enable auto-merge on Dependabot PRs.
+  # Approve reviews and merge Dependabot PRs.
   pull_requests: write
   # Merging creates a commit; also the push webhook and reading repo config.
   contents: write

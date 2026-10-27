@@ -29,8 +29,7 @@ const GROUP_TITLE_RE = /\bbumps? the (.+?) group\b/i;
 const GROUP_BODY_RE = /^Updates? \[?`([^`]+)`\]?(?:\([^)]*\))? from (\S+) to (\S+)/gim;
 
 // Extract every update a Dependabot PR performs. Empty result means the
-// title/body could not be parsed confidently — callers treat that like a
-// major and leave the PR alone.
+// title/body could not be parsed confidently — callers leave the PR alone.
 export function parseUpdates(title: string, body: string | null | undefined): Update[] {
   if (GROUP_TITLE_RE.test(title)) {
     const updates: Update[] = [];
@@ -71,7 +70,7 @@ export function isSecurityUpdate(body: string | null | undefined): boolean {
 
 // Tolerant version-bump math, not strict semver. Anything that cannot be
 // compared with confidence (SHA pins, pre-releases, version ranges,
-// identical versions) is "unknown", which policy treats like a major.
+// identical versions) is "unknown", which policy never merges.
 export function bump(from: string, to: string): Bump {
   const a = versionNumbers(from);
   const b = versionNumbers(to);

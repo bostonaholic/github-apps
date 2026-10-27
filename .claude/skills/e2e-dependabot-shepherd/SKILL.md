@@ -16,10 +16,10 @@ one-time sandbox setup, and failure triage.
 | Step | Scenario | Expected |
 | --- | --- | --- |
 | 1 | Patch PR (`Bump lodash from 4.17.20 to 4.17.21`) | approved and merged once the sandbox CI run is green |
-| 2 | Major PR (`Bump react from 18.2.0 to 19.0.0`) | left open, zero reviews |
+| 2 | Major PR (`Bump react from 18.2.0 to 19.0.0`) | approved and merged once the sandbox CI run is green |
 | 3 | Patch PR opened as draft, labeled `shepherd: ignore`, marked ready | left open, zero reviews |
 | 4 | Patch PR carrying the `e2e-fail-marker` file (CI red) | blocked while red; merges after the marker is removed and CI turns green |
-| 5 | Push to main that conflicts with the major PR's file | `@dependabot rebase` comment appears on it (a merely-stale PR reports `clean` without strict branch protection, so the scenario forces a conflict) |
+| 5 | Unparseable bump (`Bump actions/checkout from abcdef to 123456`), then a push to main that conflicts with its file | left open with zero reviews; `@dependabot rebase` comment appears after the conflict (a merely-stale PR reports `clean` without strict branch protection, so the scenario forces a conflict) |
 
 ## The author seam
 
@@ -52,8 +52,8 @@ stop the running server and let the script start its own.
 4. **Sandbox prepared** (one-time, see below): the `e2e-ci` workflow exists
    on main. The script creates the `shepherd: ignore` label itself if
    missing. Keep the sandbox's auto-merge repo setting **off** and main
-   unprotected — the e2e exercises the direct-merge fallback; the native
-   auto-merge path (branch protection + required checks) is not covered.
+   unprotected — the app merges directly and does not enable native
+   auto-merge. The e2e does not cover branch protection or required checks.
 
 ## One-time sandbox setup
 
@@ -92,7 +92,7 @@ The script prints one `== step` header per scenario and ends with
 `E2E PASS`. Merge waits poll for up to 240 s (`E2E_POLL_TIMEOUT`) because
 Actions runner queueing dominates; negative assertions wait 20 s
 (`E2E_GRACE`). The sandbox repo can be overridden with `E2E_REPO`. Expect a
-full run to take several minutes — two scenarios each wait out a live
+full run to take several minutes — three scenarios each wait out a live
 Actions run.
 
 Cleanup closes the still-open PRs and deletes their branches on pass and
@@ -106,16 +106,21 @@ fail; merged PRs and the files they added stay in the sandbox history.
 - **Timeout on step 1**: the app never merged. Check the server log tail:
   no webhook lines → delivery problem (smee channel, app not installed on
   the sandbox); "not merging —" skip lines show the policy reason;
-  "enabling auto-merge failed" points at `classifyAutoMergeError` not
-  recognizing a new GitHub error message. A reused server without
-  `E2E_ALLOW_AUTHOR` produces silent author-guard skips (no log line).
-- **Step 2/3 fail (PR touched)**: the policy let something through — a real
-  regression in `src/policy.ts` or the label/draft handling.
+  "checks still running" or "checks failing" means the rollup in
+  `checksRollup` did not go green; "merge failed" is a `pulls.merge`
+  error other than 405/409. A reused server without `E2E_ALLOW_AUTHOR`
+  produces silent author-guard skips (no log line).
+- **Step 2 timeout**: majors are in the default ceiling — a skip here is a
+  policy regression in `src/policy.ts`.
+- **Step 3 fail (PR touched)**: the ignore label or draft handling let
+  something through.
 - **Step 4 merged over red CI**: the checks rollup regressed
   (`checksRollup` in `src/shepherd.ts`) — this is the highest-severity
   failure the e2e can catch.
-- **Step 5 timeout**: the rebase path regressed (`src/rebase.ts`), or
-  `mergeable_state` stayed "unknown" past its retries — re-run once before
-  diagnosing.
+- **Step 5 merged or reviewed before the conflict**: unknown bumps must
+  stay untouched — a regression in `bump()` / `decide()`.
+- **Step 5 timeout on the rebase comment**: the rebase path regressed
+  (`src/rebase.ts`), or `mergeable_state` stayed "unknown" past its
+  retries — re-run once before diagnosing.
 - Do not retry a failed run more than once before diagnosing: the run is
   deterministic apart from webhook and Actions delivery delays.

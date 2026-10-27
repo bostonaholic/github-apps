@@ -80,24 +80,24 @@ describe("ceilingFor", () => {
 });
 
 describe("decide", () => {
-  it("merges patch and minor under the default config", () => {
-    expect(decide(facts({ updates: [patch, minor] }), DEFAULTS).merge).toBe(true);
+  it("merges patch, minor, and major under the default config", () => {
+    expect(decide(facts({ updates: [patch, minor, major] }), DEFAULTS).merge).toBe(true);
   });
 
-  it("never merges majors by default", () => {
-    const decision = decide(facts({ updates: [major] }), DEFAULTS);
+  it("a lower ceiling still blocks majors", () => {
+    const config = normalizeConfig({ merge: "minor" });
+    const decision = decide(facts({ updates: [major] }), config);
     expect(decision.merge).toBe(false);
     expect(decision.reason).toContain("react");
     expect(decision.reason).toContain("major");
   });
 
   it("never merges unknown bumps, even with a major ceiling", () => {
-    const config = normalizeConfig({ merge: "major" });
-    expect(decide(facts({ updates: [unknown] }), config).merge).toBe(false);
+    expect(decide(facts({ updates: [unknown] }), DEFAULTS).merge).toBe(false);
   });
 
   it("one blocked update blocks the whole group", () => {
-    const decision = decide(facts({ updates: [patch, minor, major] }), DEFAULTS);
+    const decision = decide(facts({ updates: [patch, minor, unknown] }), DEFAULTS);
     expect(decision.merge).toBe(false);
   });
 

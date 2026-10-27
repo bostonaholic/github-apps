@@ -3,9 +3,9 @@
 #
 # Simulates Dependabot PRs in the sandbox repo (there is no API to make
 # Dependabot open one on demand) and asserts the app's behavior: an allowed
-# patch merges once CI is green, a major is left alone, the ignore label is
-# respected, red CI blocks until fixed, and a push to main draws a
-# "@dependabot rebase" comment on a stale PR.
+# patch and a major merge once CI is green, the ignore label is respected,
+# red CI blocks until fixed, an unparseable bump is left alone, and a push
+# to main draws a "@dependabot rebase" comment on that stale PR.
 #
 # Requires: gh (authenticated with push access to the sandbox), a registered
 # app (.env present), the app installed on the sandbox repo, and the sandbox
@@ -173,12 +173,12 @@ PR1="$OPENED_PR"
 log "  PR: https://github.com/$REPO/pull/$PR1"
 wait_merged "$PR1"
 
-log "== 2: major is left alone"
+log "== 2: major merges once CI is green"
 open_pr "dependabot/npm_and_yarn/e2e-react-$TS" \
   "Bump react from 18.2.0 to 19.0.0" false
 PR2="$OPENED_PR"
 log "  PR: https://github.com/$REPO/pull/$PR2"
-assert_untouched "$PR2"
+wait_merged "$PR2"
 
 log "== 3: ignore label is respected"
 open_pr "dependabot/npm_and_yarn/e2e-vitest-$TS" \
@@ -205,14 +205,20 @@ gh api -X DELETE "repos/$REPO/contents/e2e-fail-marker" \
   -f message="test: remove failure marker" -f sha="$MARKER_SHA" -f branch="$BRANCH4" >/dev/null
 wait_merged "$PR4"
 
-log "== 5: conflicting push to main draws a rebase request on the major PR"
-# The major PR added e2e-$TS-2.txt; pushing different content at the same
-# path to main makes it conflicted ("dirty"). A merely-stale PR won't do:
-# without strict branch protection GitHub reports it as "clean", and no
-# rebase is needed to merge it.
-gh api -X PUT "repos/$REPO/contents/e2e-$TS-2.txt" \
-  -f message="test: conflict with the major PR" \
+log "== 5: unparseable bump stays open; a conflicting push draws a rebase"
+# Unknown bumps never merge, so this PR stays open to receive the rebase
+# comment. Pushing different content at the same path to main makes it
+# conflicted ("dirty"). A merely-stale PR won't do: without strict branch
+# protection GitHub reports it as "clean", and no rebase is needed to merge it.
+open_pr "dependabot/npm_and_yarn/e2e-checkout-$TS" \
+  "Bump actions/checkout from abcdef to 123456" false
+PR5="$OPENED_PR"
+FILE5="e2e-$TS-${#BRANCHES[@]}.txt"
+log "  PR: https://github.com/$REPO/pull/$PR5"
+assert_untouched "$PR5"
+gh api -X PUT "repos/$REPO/contents/$FILE5" \
+  -f message="test: conflict with the unparsed PR" \
   -f content="$(printf 'conflict' | base64)" >/dev/null
-wait_for_rebase_comment "$PR2"
+wait_for_rebase_comment "$PR5"
 
-log "E2E PASS ($REPO PRs #$PR1 #$PR2 #$PR3 #$PR4)"
+log "E2E PASS ($REPO PRs #$PR1 #$PR2 #$PR3 #$PR4 #$PR5)"
