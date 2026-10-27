@@ -155,6 +155,38 @@ describe("parseUpdates", () => {
     expect(highestBump(updates)).toBe("major");
   });
 
+  it("skips Bump a and b when one named package has no Updates line", () => {
+    expect(parseUpdates("Bump a and b", "Updates `a` from 1.0.0 to 1.0.1")).toEqual([]);
+  });
+
+  it("skips Bump a, b and c when one named package has no Updates line", () => {
+    const body = [
+      "Updates `a` from 1.0.0 to 1.0.1",
+      "Updates `c` from 2.0.0 to 2.1.0",
+    ].join("\n");
+    expect(parseUpdates("Bump a, b and c in /apps/example", body)).toEqual([]);
+  });
+
+  it("parses Bump a, b and c when every named package has an Updates line", () => {
+    const body = [
+      "Updates `a` from 1.0.0 to 1.0.1",
+      "Updates `b` from 1.2.0 to 1.3.0",
+      "Updates `c` from 2.0.0 to 2.1.0",
+    ].join("\n");
+    const updates = parseUpdates("chore(deps): bump a, b and c", body);
+    expect(updates.map((update) => update.name)).toEqual(["a", "b", "c"]);
+    expect(highestBump(updates)).toBe("minor");
+  });
+
+  it("still parses a group title that does not list its packages", () => {
+    expect(
+      parseUpdates(
+        "Bump the dev-dependencies group with 2 updates",
+        "Updates `eslint` from 8.57.0 to 8.57.1",
+      ),
+    ).toEqual([{ name: "eslint", from: "8.57.0", to: "8.57.1", bump: "patch" }]);
+  });
+
   it("collapses duplicate body lines and lets unknown outrank major", () => {
     const body = [
       "Updates `parallel` from 2.1.0 to 2.3.0",

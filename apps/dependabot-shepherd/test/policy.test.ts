@@ -122,6 +122,13 @@ describe("decide", () => {
     expect(allowed.reason.startsWith("major update:")).toBe(true);
   });
 
+  it("skips a Bump a and b title when the body omits one package", () => {
+    const updates = parseUpdates("Bump a and b", "Updates `a` from 1.0.0 to 1.0.1");
+    const decision = decide(facts({ updates }), DEFAULTS);
+    expect(decision.merge).toBe(false);
+    expect(decision.reason).toContain("parse");
+  });
+
   it("merges a patch multi-package PR under a patch ceiling", () => {
     const updates = parseUpdates(
       "chore(dependabot-shepherd): bump @vitest/mocker and vitest in /apps/dependabot-shepherd",

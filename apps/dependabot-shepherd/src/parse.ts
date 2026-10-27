@@ -22,8 +22,14 @@ export function isDependabotBranch(ref: string): boolean {
 const BUMP_TITLE_RE = /\bbumps? (\S+) from (\S+) to (\S+)/i;
 const REQUIREMENT_TITLE_RE = /\bupdates? (\S+) requirement from (.+?) to (.+?)(?: in \S+)?$/i;
 // Grouped titles: "Bump the dev-dependencies group [across N directories]
-// with N updates" — the per-package facts live in the body.
+// with N updates" — the per-package facts live in the body. The title
+// does not list package names.
 const GROUP_TITLE_RE = /\bbumps? the (.+?) group\b/i;
+// "Bump a and b" / "Bump a, b and c", plus an optional directory suffix
+// (" in /apps/foo" or " across 2 directories"). Names are in the title;
+// versions are only in the body.
+const MULTI_TITLE_RE =
+  /\bbumps?\s+(.+?)(?:\s+in\s+\/\S*|\s+across\s+\d+\s+director(?:y|ies))?\s*$/i;
 // One body line per package. Dependabot writes either a code span
 // ("Updates `pkg` from a to b", optionally [`pkg`](url)) or, on some
 // grouped PRs, a markdown link ("Updated [pkg](url) from a to b.").
@@ -45,8 +51,35 @@ export function parseUpdates(title: string, body: string | null | undefined): Up
   // lines so a release note cannot add a second package.
   if (fromTitle) return [fromTitle];
 
-  // "Bump @vitest/mocker and vitest" — versions exist only in the body.
+  // "Bump @vitest/mocker and vitest" names every package. A truncated
+  // body that drops one Updates line must not merge the rest.
+  const names = multiPackageNames(title);
+  if (names) {
+    const present = new Set(fromBody.map((update) => update.name));
+    if (names.some((name) => !present.has(name))) return [];
+    return fromBody;
+  }
+
   return fromBody;
+}
+
+// Package names from "Bump a and b" or "Bump a, b and c". Null when the
+// title is not that shape. Dependabot puts ", " between every name but
+// the last, and " and " before the last.
+function multiPackageNames(title: string): string[] | null {
+  const match = title.match(MULTI_TITLE_RE);
+  if (!match) return null;
+  const list = match[1].trim();
+  const parts = list.split(/\s+and\s+/i);
+  if (parts.length !== 2) return null;
+  const head = parts[0]
+    .split(/\s*,\s*/)
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+  const last = parts[1].trim();
+  if (last.length === 0 || last.includes(",") || head.length === 0) return null;
+  if (head.some((name) => /\s/.test(name)) || /\s/.test(last)) return null;
+  return [...head, last];
 }
 
 function parseTitleUpdate(title: string): Update | null {

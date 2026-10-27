@@ -60,7 +60,10 @@ Behavioral invariants to preserve:
   is one update type: the highest semver bump among the
   ``Updates `pkg` from a to b`` lines in the body. That type still has to
   clear the configured ceiling, and a tighter per-package ceiling can
-  still block its own package.
+  still block its own package. `Bump a and b` and `Bump a, b and c`
+  name their packages in the title; if any name has no body line, the
+  PR is unparseable and is skipped. Group titles do not list packages,
+  so they keep whatever body lines are present.
 - Approvals are idempotent per head SHA. The app is not subscribed to
   `pull_request_review` or `issue_comment`, so its own approvals and rebase
   comments cannot re-trigger it.
