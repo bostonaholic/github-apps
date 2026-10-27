@@ -13,7 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `Cursor Security Agent: Security Reviewer`, that check does not run on
   Dependabot PRs, and auto-merge waits for it forever. The merge is pinned
   to the head SHA. Skipped checks count as green, and that Cursor check is
-  ignored.
+  ignored. Commit statuses are read past the first page, so a later red
+  status is not missed when that check is in the list.
 
 ### Changed
 

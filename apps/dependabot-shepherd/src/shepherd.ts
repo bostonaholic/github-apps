@@ -42,8 +42,8 @@ const IGNORED_CHECK_NAMES = new Set(["Cursor Security Agent: Security Reviewer"]
 // same idea for checks that ran without a pass/fail verdict.
 const PASSING_CONCLUSIONS = new Set(["success", "neutral", "skipped"]);
 
-function isIgnoredCheck(name: string | undefined): boolean {
-  return name !== undefined && IGNORED_CHECK_NAMES.has(name);
+function isIgnoredCheck(name: string | null | undefined): boolean {
+  return name != null && IGNORED_CHECK_NAMES.has(name);
 }
 
 export interface ReconcileParams {
@@ -152,6 +152,30 @@ function errorMessage(error: unknown): string {
 
 type Rollup = "green" | "pending" | "red";
 
+// The combined-status endpoint defaults to 30 per page and is not a
+// Link-header list, so octokit.paginate will not walk it. Fetch every page.
+const STATUS_PAGE_SIZE = 100;
+
+async function listCombinedStatuses(
+  octokit: Octokit,
+  { owner, repo, ref }: { owner: string; repo: string; ref: string },
+) {
+  const statuses = [];
+  for (let page = 1; ; page++) {
+    const { data } = await octokit.rest.repos.getCombinedStatusForRef({
+      owner,
+      repo,
+      ref,
+      per_page: STATUS_PAGE_SIZE,
+      page,
+    });
+    statuses.push(...data.statuses);
+    if (data.statuses.length < STATUS_PAGE_SIZE || statuses.length >= data.total_count) {
+      return statuses;
+    }
+  }
+}
+
 // Combined verdict over check runs and (legacy) commit statuses on a ref.
 // No checks and no statuses at all counts as green ONLY on a repo with no
 // workflow files: zero-touch on repos without CI is deliberate (see
@@ -180,28 +204,12 @@ async function checksRollup(
     if (!PASSING_CONCLUSIONS.has(run.conclusion ?? "")) return "red";
   }
 
-  const { data: combined } = await octokit.rest.repos.getCombinedStatusForRef({
-    owner,
-    repo,
-    ref,
-  });
-  const allStatuses = combined.statuses ?? [];
+  const allStatuses = await listCombinedStatuses(octokit, { owner, repo, ref });
   const statuses = allStatuses.filter((status) => !isIgnoredCheck(status.context));
-  const ignoredSomeStatus = statuses.length !== allStatuses.length;
-  // When nothing was ignored, trust GitHub's rollup: it covers statuses
-  // that the `statuses` array does not expand. When an ignored context is
-  // in the list, judge the rest ourselves so that context cannot block.
-  let sawStatus = false;
-  if (ignoredSomeStatus) {
-    sawStatus = statuses.length > 0;
-    for (const status of statuses) {
-      if (status.state === "pending") pending = true;
-      else if (status.state !== "success") return "red";
-    }
-  } else if (combined.total_count > 0) {
-    sawStatus = true;
-    if (combined.state === "pending") pending = true;
-    else if (combined.state !== "success") return "red";
+  const sawStatus = statuses.length > 0;
+  for (const status of statuses) {
+    if (status.state === "pending") pending = true;
+    else if (status.state !== "success") return "red";
   }
 
   if (!sawCheck && !sawStatus) {

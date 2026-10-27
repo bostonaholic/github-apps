@@ -22,6 +22,7 @@ function fakeOctokit(options: FakeOptions = {}) {
     approvals: [] as Record<string, unknown>[],
     merges: [] as Record<string, unknown>[],
     paginated: [] as string[],
+    statusPages: [] as number[],
   };
 
   const pr = {
@@ -60,9 +61,25 @@ function fakeOctokit(options: FakeOptions = {}) {
       },
       checks: { listForRef: "listForRef" },
       repos: {
-        getCombinedStatusForRef: async () => ({
-          data: options.combinedStatus ?? { state: "success", total_count: 0 },
-        }),
+        // GitHub defaults this endpoint to 30 statuses per page. Slice so a
+        // test can put a decisive status past the first page.
+        getCombinedStatusForRef: async (
+          params: { page?: number; per_page?: number } = {},
+        ) => {
+          const page = params.page ?? 1;
+          calls.statusPages.push(page);
+          const spec = options.combinedStatus ?? { state: "success", total_count: 0 };
+          const all = spec.statuses ?? [];
+          const perPage = params.per_page ?? 30;
+          const start = (page - 1) * perPage;
+          return {
+            data: {
+              state: spec.state,
+              total_count: spec.total_count,
+              statuses: all.slice(start, start + perPage),
+            },
+          };
+        },
         getContent: async () => {
           if (options.workflows) return { data: [{ name: "ci.yml" }] };
           const error = new Error("Not Found") as Error & { status: number };
@@ -234,9 +251,43 @@ describe("reconcile", () => {
 
   it("never merges over a red combined status", async () => {
     const calls = await run({
-      combinedStatus: { state: "failure", total_count: 2 },
+      combinedStatus: {
+        state: "failure",
+        total_count: 1,
+        statuses: [{ context: "ci/circleci", state: "failure" }],
+      },
     });
     expect(calls.merges).toHaveLength(0);
+  });
+
+  it("a red status past the first combined-status page still blocks", async () => {
+    const statuses = Array.from({ length: 101 }, (_, i) => ({
+      context: `ci-${i}`,
+      state: "success",
+    }));
+    statuses[0] = { context: "Cursor Security Agent: Security Reviewer", state: "pending" };
+    statuses[100] = { context: "ci-late", state: "failure" };
+    const calls = await run({
+      combinedStatus: { state: "failure", total_count: statuses.length, statuses },
+    });
+    expect(calls.merges).toHaveLength(0);
+    expect(calls.statusPages).toEqual([1, 2]);
+  });
+
+  it("an ignored status past the first page does not block a green head", async () => {
+    const statuses = Array.from({ length: 101 }, (_, i) => ({
+      context: `ci-${i}`,
+      state: "success",
+    }));
+    statuses[100] = {
+      context: "Cursor Security Agent: Security Reviewer",
+      state: "pending",
+    };
+    const calls = await run({
+      combinedStatus: { state: "pending", total_count: statuses.length, statuses },
+    });
+    expect(calls.merges).toHaveLength(1);
+    expect(calls.statusPages).toEqual([1, 2]);
   });
 
   it("does not let an ignored status hide a red one", async () => {
