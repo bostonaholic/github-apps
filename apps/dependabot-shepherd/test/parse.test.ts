@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bump,
+  highestBump,
   isDependabotBranch,
   isSecurityUpdate,
   parseUpdates,
@@ -86,6 +87,124 @@ describe("parseUpdates", () => {
 
   it("returns no updates for a grouped title whose body has no update lines", () => {
     expect(parseUpdates("Bump the deps group with 2 updates", "prose only")).toEqual([]);
+  });
+
+  it("parses a grouped body that uses markdown links instead of code spans", () => {
+    const body = [
+      "Bumps the microsoft-build group with 2 updates.",
+      "",
+      "Updated [Microsoft.Build.Framework](https://github.com/dotnet/msbuild) from 18.9.6 to 18.11.0.",
+      "Updated [Microsoft.NET.StringTools](https://github.com/dotnet/msbuild) from 18.9.6 to 18.11.0.",
+    ].join("\n");
+    const updates = parseUpdates("Bump the microsoft-build group with 2 updates", body);
+    expect(updates).toEqual([
+      {
+        name: "Microsoft.Build.Framework",
+        from: "18.9.6",
+        to: "18.11.0",
+        bump: "minor",
+      },
+      {
+        name: "Microsoft.NET.StringTools",
+        from: "18.9.6",
+        to: "18.11.0",
+        bump: "minor",
+      },
+    ]);
+    expect(highestBump(updates)).toBe("minor");
+  });
+
+  // bostonaholic/github-apps#34 and #35. The title names both packages
+  // and has no from/to; the versions are only in the body.
+  it.each([
+    "chore(task-list-completed): bump @vitest/mocker and vitest in /apps/task-list-completed",
+    "chore(dependabot-shepherd): bump @vitest/mocker and vitest in /apps/dependabot-shepherd",
+  ])("parses multi-package PR %s from its body lines", (title) => {
+    const body = [
+      "Bumps [@vitest/mocker](https://github.com/vitest-dev/vitest/tree/HEAD/packages/mocker) to 4.1.12 and updates ancestor dependency [vitest](https://github.com/vitest-dev/vitest/tree/HEAD/packages/vitest). These dependencies need to be updated together.",
+      "",
+      "Updates `@vitest/mocker` from 4.1.11 to 4.1.12",
+      "<details>",
+      "<summary>Release notes</summary>",
+      "<p><em>Sourced from @vitest/mocker's releases.</em></p>",
+      "</details>",
+      "",
+      "Updates `vitest` from 4.1.11 to 4.1.12",
+    ].join("\n");
+    const updates = parseUpdates(title, body);
+    expect(updates).toEqual([
+      { name: "@vitest/mocker", from: "4.1.11", to: "4.1.12", bump: "patch" },
+      { name: "vitest", from: "4.1.11", to: "4.1.12", bump: "patch" },
+    ]);
+    expect(highestBump(updates)).toBe("patch");
+  });
+
+  it("treats a grouped PR as its highest bump", () => {
+    const body = [
+      "Bumps the vitest-suite group with 2 updates in the / directory: [@vitest/coverage-v8](https://github.com/vitest-dev/vitest/tree/HEAD/packages/coverage-v8) and [vitest](https://github.com/vitest-dev/vitest/tree/HEAD/packages/vitest).",
+      "",
+      "Updates `@vitest/coverage-v8` from 4.1.11 to 5.0.5",
+      "Updates `eslint` from 8.57.0 to 8.57.1",
+      "Updates `vitest` from 4.1.11 to 5.0.5",
+    ].join("\n");
+    const updates = parseUpdates(
+      "Bump the vitest-suite group across 1 directory with 2 updates",
+      body,
+    );
+    expect(updates.map((update) => update.bump)).toEqual(["major", "patch", "major"]);
+    expect(highestBump(updates)).toBe("major");
+  });
+
+  it("skips Bump a and b when one named package has no Updates line", () => {
+    expect(parseUpdates("Bump a and b", "Updates `a` from 1.0.0 to 1.0.1")).toEqual([]);
+  });
+
+  it("skips Bump a, b and c when one named package has no Updates line", () => {
+    const body = [
+      "Updates `a` from 1.0.0 to 1.0.1",
+      "Updates `c` from 2.0.0 to 2.1.0",
+    ].join("\n");
+    expect(parseUpdates("Bump a, b and c in /apps/example", body)).toEqual([]);
+  });
+
+  it("parses Bump a, b and c when every named package has an Updates line", () => {
+    const body = [
+      "Updates `a` from 1.0.0 to 1.0.1",
+      "Updates `b` from 1.2.0 to 1.3.0",
+      "Updates `c` from 2.0.0 to 2.1.0",
+    ].join("\n");
+    const updates = parseUpdates("chore(deps): bump a, b and c", body);
+    expect(updates.map((update) => update.name)).toEqual(["a", "b", "c"]);
+    expect(highestBump(updates)).toBe("minor");
+  });
+
+  it("still parses a group title that does not list its packages", () => {
+    expect(
+      parseUpdates(
+        "Bump the dev-dependencies group with 2 updates",
+        "Updates `eslint` from 8.57.0 to 8.57.1",
+      ),
+    ).toEqual([{ name: "eslint", from: "8.57.0", to: "8.57.1", bump: "patch" }]);
+  });
+
+  it("collapses duplicate body lines and lets unknown outrank major", () => {
+    const body = [
+      "Updates `parallel` from 2.1.0 to 2.3.0",
+      "Updates `parallel` from 2.1.0 to 2.3.0",
+      "Updates `actions/checkout` from 8f4b7f84864484a7bf31766abe9204da3cbe65b3 to 11bd71901bbe5b1630ceea73d27597364c9af683",
+    ].join("\n");
+    const updates = parseUpdates("Bump parallel and actions/checkout", body);
+    expect(updates).toHaveLength(2);
+    expect(highestBump(updates)).toBe("unknown");
+  });
+
+  it("keeps a single from/to title when the body repeats that package", () => {
+    expect(
+      parseUpdates(
+        "Bump lodash from 4.17.20 to 4.17.21",
+        "Updates `lodash` from 4.17.20 to 4.17.21",
+      ),
+    ).toEqual([{ name: "lodash", from: "4.17.20", to: "4.17.21", bump: "patch" }]);
   });
 
   it("returns no updates for an unrecognized title", () => {
