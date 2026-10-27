@@ -20,8 +20,10 @@ from the PR title and body:
 - `Bump lodash from 4.17.20 to 4.17.21` → patch
 - `Bump react from 18.2.0 to 19.0.0` → major
 - `Update rake requirement from ~> 13.0 to ~> 13.1` → minor
-- `Bump the dev-dependencies group with 3 updates` → each update in the
-  group is evaluated; all must clear the policy
+- `Bump @vitest/mocker and vitest` → each `Updates \`pkg\` from a to b`
+  line in the body. The PR's update type is the highest bump among them
+- `Bump the dev-dependencies group with 3 updates` → the same body lines;
+  the highest bump still has to clear the policy, and so does every package
 
 The bump is compared against the policy ceiling. Anything the app cannot
 parse confidently (SHA-pinned actions, pre-releases) is left alone for a

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- Multi-package Dependabot PRs are parsed and can merge. Titles like
+  `Bump @vitest/mocker and vitest` and `Bump the X group ...` have no
+  single from/to version, so the app logged "could not parse the update"
+  and left them (for example
+  <https://github.com/bostonaholic/github-apps/pull/34> and
+  <https://github.com/bostonaholic/github-apps/pull/35>). Every
+  `Updates \`pkg\` from a to b` line in the PR body is read. The PR's
+  update type is the highest semver bump among those lines, and that
+  bump still has to clear the configured ceiling.
+
 ## [0.2.0] - 2026-10-27
 
 ### Fixed

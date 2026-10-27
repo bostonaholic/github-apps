@@ -24,7 +24,8 @@ compiled output, so build before starting the server.
 Strict layering, pure core with I/O at the edges:
 
 - `src/parse.ts` — pure: Dependabot PR metadata extraction (title/body
-  regexes, grouped updates, tolerant version-bump math, security markers)
+  regexes, grouped and multi-package updates, tolerant version-bump math,
+  security markers)
 - `src/policy.ts` — pure: config defaults, per-package glob overrides, and
   `decide()` — whether a PR's updates clear the policy; owns `IGNORE_LABEL`
 - `src/shepherd.ts` — orchestration: `reconcile()` fetches the PR, guards on
@@ -55,6 +56,11 @@ Behavioral invariants to preserve:
   no comment, no status — `unknown` outranks every ceiling. The app is an
   actor, not a gate — when disabled or unsure it does nothing at all, so
   it can never wedge a PR.
+- A multi-package PR (a `Bump a and b` title, or `Bump the X group ...`)
+  is one update type: the highest semver bump among the
+  `Updates \`pkg\` from a to b` lines in the body. That type still has to
+  clear the configured ceiling, and a tighter per-package ceiling can
+  still block its own package.
 - Approvals are idempotent per head SHA. The app is not subscribed to
   `pull_request_review` or `issue_comment`, so its own approvals and rebase
   comments cannot re-trigger it.

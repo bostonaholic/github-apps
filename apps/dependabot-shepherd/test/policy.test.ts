@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Update } from "../src/parse.js";
+import { highestBump, parseUpdates, type Update } from "../src/parse.js";
 import {
   ceilingFor,
   decide,
@@ -99,6 +99,54 @@ describe("decide", () => {
   it("one blocked update blocks the whole group", () => {
     const decision = decide(facts({ updates: [patch, minor, unknown] }), DEFAULTS);
     expect(decision.merge).toBe(false);
+  });
+
+  it("treats a multi-package PR as its highest bump, under the ceiling", () => {
+    const updates = parseUpdates(
+      "Bump the dev-dependencies group with 3 updates",
+      [
+        "Updates `eslint` from 8.57.0 to 8.57.1",
+        "Updates `vitest` from 3.1.0 to 3.2.0",
+        "Updates `vite` from 5.0.0 to 6.0.0",
+      ].join("\n"),
+    );
+    expect(highestBump(updates)).toBe("major");
+
+    const blocked = decide(facts({ updates }), normalizeConfig({ merge: "minor" }));
+    expect(blocked.merge).toBe(false);
+    expect(blocked.reason).toContain("vite");
+    expect(blocked.reason).toContain("major");
+
+    const allowed = decide(facts({ updates }), normalizeConfig({ merge: "major" }));
+    expect(allowed.merge).toBe(true);
+    expect(allowed.reason.startsWith("major update:")).toBe(true);
+  });
+
+  it("merges a patch multi-package PR under a patch ceiling", () => {
+    const updates = parseUpdates(
+      "chore(dependabot-shepherd): bump @vitest/mocker and vitest in /apps/dependabot-shepherd",
+      [
+        "Updates `@vitest/mocker` from 4.1.11 to 4.1.12",
+        "Updates `vitest` from 4.1.11 to 4.1.12",
+      ].join("\n"),
+    );
+    expect(highestBump(updates)).toBe("patch");
+    const decision = decide(facts({ updates }), normalizeConfig({ merge: "patch" }));
+    expect(decision.merge).toBe(true);
+    expect(decision.reason.startsWith("patch update:")).toBe(true);
+  });
+
+  it("a per-package ceiling still blocks that package inside a group", () => {
+    const updates = parseUpdates(
+      "Bump the dev-dependencies group with 2 updates",
+      [
+        "Updates `eslint` from 8.57.0 to 8.57.1",
+        "Updates `react` from 18.2.0 to 18.3.0",
+      ].join("\n"),
+    );
+    expect(highestBump(updates)).toBe("minor");
+    const config = normalizeConfig({ merge: "minor", packages: { react: "none" } });
+    expect(decide(facts({ updates }), config).merge).toBe(false);
   });
 
   it("skips when the update could not be parsed", () => {

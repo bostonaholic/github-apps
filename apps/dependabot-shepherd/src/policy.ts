@@ -1,7 +1,7 @@
 // Pure policy: configuration handling and the decision whether the app may
 // merge a Dependabot PR. No I/O.
 
-import type { Bump, Update } from "./parse.js";
+import { highestBump, type Bump, type Update } from "./parse.js";
 
 export type Ceiling = "none" | "patch" | "minor" | "major";
 export type MergeMethod = "squash" | "merge" | "rebase";
@@ -103,7 +103,13 @@ export function decide(facts: PrFacts, config: ShepherdConfig): Decision {
   if (facts.draft) return skip("draft PR");
   if (facts.labels.includes(IGNORE_LABEL)) return skip(`"${IGNORE_LABEL}" label`);
   if (facts.changesRequested) return skip("a reviewer requested changes");
-  if (facts.updates.length === 0) return skip("could not parse the update");
+
+  // One update type for the PR: the highest bump among its packages.
+  // Unknown outranks every ceiling. Each package is still checked against
+  // its own ceiling, so a tighter override can block a smaller bump, and
+  // the highest bump has to clear the ceiling of the package that carries it.
+  const updateType = highestBump(facts.updates);
+  if (updateType === null) return skip("could not parse the update");
 
   for (const update of facts.updates) {
     const ceiling = ceilingFor(update.name, config, facts.security);
@@ -117,7 +123,8 @@ export function decide(facts: PrFacts, config: ShepherdConfig): Decision {
   const summary = facts.updates
     .map((u) => `${u.name} ${u.from} → ${u.to} (${u.bump})`)
     .join(", ");
-  return { merge: true, reason: summary };
+  const reason = facts.updates.length > 1 ? `${updateType} update: ${summary}` : summary;
+  return { merge: true, reason };
 }
 
 function skip(reason: string): Decision {

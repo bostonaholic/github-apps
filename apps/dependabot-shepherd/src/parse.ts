@@ -24,35 +24,68 @@ const REQUIREMENT_TITLE_RE = /\bupdates? (\S+) requirement from (.+?) to (.+?)(?
 // Grouped titles: "Bump the dev-dependencies group [across N directories]
 // with N updates" — the per-package facts live in the body.
 const GROUP_TITLE_RE = /\bbumps? the (.+?) group\b/i;
-// One body line per package in a grouped PR. The package name may be a
-// plain `code span` or a [`code span`](link).
-const GROUP_BODY_RE = /^Updates? \[?`([^`]+)`\]?(?:\([^)]*\))? from (\S+) to (\S+)/gim;
+// One body line per package. Dependabot writes either a code span
+// ("Updates `pkg` from a to b", optionally [`pkg`](url)) or, on some
+// grouped PRs, a markdown link ("Updated [pkg](url) from a to b.").
+const BODY_UPDATE_RE =
+  /^Update[ds]? (?:\[?`([^`]+)`\]?(?:\([^)]*\))?|\[([^\]]+)\]\([^)]*\)) from (\S+) to (\S+)\s*$/gim;
+
+const BUMP_RANK: Record<Bump, number> = { patch: 1, minor: 2, major: 3, unknown: 4 };
 
 // Extract every update a Dependabot PR performs. Empty result means the
 // title/body could not be parsed confidently — callers leave the PR alone.
 export function parseUpdates(title: string, body: string | null | undefined): Update[] {
-  if (GROUP_TITLE_RE.test(title)) {
-    const updates: Update[] = [];
-    for (const match of (body ?? "").matchAll(GROUP_BODY_RE)) {
-      const [, name, from, to] = match;
-      updates.push({ name, from, to, bump: bump(from, to) });
+  const fromBody = parseBodyUpdates(body);
+
+  // "Bump the X group ..." has no per-package versions in the title.
+  if (GROUP_TITLE_RE.test(title)) return fromBody;
+
+  const fromTitle = parseTitleUpdate(title);
+  // A single from/to title is the whole update. Prefer it over body
+  // lines so a release note cannot add a second package.
+  if (fromTitle) return [fromTitle];
+
+  // "Bump @vitest/mocker and vitest" — versions exist only in the body.
+  return fromBody;
+}
+
+function parseTitleUpdate(title: string): Update | null {
+  const single = title.match(BUMP_TITLE_RE) ?? title.match(REQUIREMENT_TITLE_RE);
+  if (!single) return null;
+  const [, name, from, to] = single;
+  return { name, from, to, bump: bump(from, to) };
+}
+
+function parseBodyUpdates(body: string | null | undefined): Update[] {
+  const updates: Update[] = [];
+  const seen = new Set<string>();
+  for (const match of (body ?? "").matchAll(BODY_UPDATE_RE)) {
+    const name = match[1] ?? match[2];
+    const from = trimVersion(match[3]);
+    const to = trimVersion(match[4]);
+    if (!name) continue;
+    const key = `${name}\0${from}\0${to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    updates.push({ name, from, to, bump: bump(from, to) });
+  }
+  return updates;
+}
+
+function trimVersion(version: string): string {
+  return version.replace(/[.,;]+$/, "");
+}
+
+// The PR's update type. Unknown outranks major, so one unreadable
+// version makes the whole PR unknown.
+export function highestBump(updates: readonly Update[]): Bump | null {
+  let highest: Bump | null = null;
+  for (const update of updates) {
+    if (highest === null || BUMP_RANK[update.bump] > BUMP_RANK[highest]) {
+      highest = update.bump;
     }
-    return updates;
   }
-
-  const single = title.match(BUMP_TITLE_RE);
-  if (single) {
-    const [, name, from, to] = single;
-    return [{ name, from, to, bump: bump(from, to) }];
-  }
-
-  const requirement = title.match(REQUIREMENT_TITLE_RE);
-  if (requirement) {
-    const [, name, from, to] = requirement;
-    return [{ name, from, to, bump: bump(from, to) }];
-  }
-
-  return [];
+  return highest;
 }
 
 // Dependabot marks security PRs in the body it generates.

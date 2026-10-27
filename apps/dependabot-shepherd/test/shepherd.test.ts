@@ -315,6 +315,48 @@ describe("reconcile", () => {
     expect(calls.merges).toHaveLength(1);
   });
 
+  // bostonaholic/github-apps#35 — title has no from/to, body has both lines.
+  it("merges a multi-package PR parsed from the body", async () => {
+    const calls = await run({
+      pr: {
+        title:
+          "chore(dependabot-shepherd): bump @vitest/mocker and vitest in /apps/dependabot-shepherd",
+        body: [
+          "Bumps [@vitest/mocker](https://github.com/vitest-dev/vitest/tree/HEAD/packages/mocker) to 4.1.12 and updates ancestor dependency [vitest](https://github.com/vitest-dev/vitest/tree/HEAD/packages/vitest). These dependencies need to be updated together.",
+          "",
+          "Updates `@vitest/mocker` from 4.1.11 to 4.1.12",
+          "Updates `vitest` from 4.1.11 to 4.1.12",
+        ].join("\n"),
+        head: {
+          sha: "abc123",
+          ref: "dependabot/npm_and_yarn/apps/dependabot-shepherd/multi-456d42d8d4",
+        },
+      },
+    });
+    expect(calls.approvals).toHaveLength(1);
+    expect(calls.approvals[0].body).toContain("@vitest/mocker 4.1.11 → 4.1.12");
+    expect(calls.approvals[0].body).toContain("vitest 4.1.11 → 4.1.12");
+    expect(calls.merges).toHaveLength(1);
+  });
+
+  it("does not merge a grouped PR whose highest bump exceeds the ceiling", async () => {
+    const calls = await run(
+      {
+        pr: {
+          title: "Bump the dev-dependencies group with 2 updates",
+          body: [
+            "Updates `eslint` from 8.57.0 to 8.57.1",
+            "Updates `vite` from 5.0.0 to 6.0.0",
+          ].join("\n"),
+          head: { sha: "abc123", ref: "dependabot/npm_and_yarn/dev-dependencies-aaa" },
+        },
+      },
+      { config: normalizeConfig({ merge: "minor" }) },
+    );
+    expect(calls.approvals).toHaveLength(0);
+    expect(calls.merges).toHaveLength(0);
+  });
+
   it("leaves unknown bumps alone", async () => {
     const calls = await run({
       pr: { title: "Bump actions/checkout from abcdef to 123456" },
