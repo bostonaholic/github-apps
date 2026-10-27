@@ -58,7 +58,7 @@ Behavioral invariants to preserve:
   it can never wedge a PR.
 - A multi-package PR (a `Bump a and b` title, or `Bump the X group ...`)
   is one update type: the highest semver bump among the
-  `Updates \`pkg\` from a to b` lines in the body. That type still has to
+  ``Updates `pkg` from a to b`` lines in the body. That type still has to
   clear the configured ceiling, and a tighter per-package ceiling can
   still block its own package.
 - Approvals are idempotent per head SHA. The app is not subscribed to
