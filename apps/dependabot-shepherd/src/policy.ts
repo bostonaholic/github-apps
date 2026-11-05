@@ -120,10 +120,10 @@ export function decide(facts: PrFacts, config: ShepherdConfig): Decision {
     }
   }
 
-  const summary = facts.updates
-    .map((u) => `${u.name} ${u.from} → ${u.to} (${u.bump})`)
-    .join(", ");
-  const reason = facts.updates.length > 1 ? `${updateType} update: ${summary}` : summary;
+  // One package per line so the approval comment reads as a list.
+  const lines = facts.updates.map((u) => `${u.name} ${u.from} → ${u.to} (${u.bump})`);
+  const reason =
+    lines.length > 1 ? `${updateType} update:\n\n- ${lines.join("\n- ")}` : lines[0];
   return { merge: true, reason };
 }
 
