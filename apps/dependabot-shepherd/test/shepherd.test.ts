@@ -334,8 +334,9 @@ describe("reconcile", () => {
       },
     });
     expect(calls.approvals).toHaveLength(1);
-    expect(calls.approvals[0].body).toContain("@vitest/mocker 4.1.11 → 4.1.12");
-    expect(calls.approvals[0].body).toContain("vitest 4.1.11 → 4.1.12");
+    expect(calls.approvals[0].body).toContain(
+      "patch update:\n\n- @vitest/mocker 4.1.11 → 4.1.12 (patch)\n- vitest 4.1.11 → 4.1.12 (patch)",
+    );
     expect(calls.merges).toHaveLength(1);
   });
 

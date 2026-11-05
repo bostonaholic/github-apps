@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- The approval comment on a multi-package PR lists one package per line
+  instead of a comma-separated run, so grouped updates like
+  <https://github.com/airshiplabs/shipyard/pull/191#pullrequestreview-5785411512>
+  are readable at a glance.
+
 ### Fixed
 
 - Multi-package Dependabot PRs are parsed and can merge. Titles like
