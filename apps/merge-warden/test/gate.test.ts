@@ -64,6 +64,10 @@ interface FakeOptions {
   // GitHub refuses to arm auto-merge with this message.
   armError?: string;
   disarmError?: Error;
+  approveError?: Error;
+  // Called when a check run completes: the moment GitHub delivers the
+  // app's own `check_suite.completed`.
+  onVerdict?: () => void;
 }
 
 const LOW_RISK: Assessment = {
@@ -142,6 +146,10 @@ function fakeOctokit(options: FakeOptions = {}) {
     ...options.pr,
   };
 
+  // Stateful like GitHub: later listings see the approval and the verdict.
+  const reviews = [...(options.reviews ?? [])];
+  const ownRuns = [...(options.ownRuns ?? [])];
+
   const octokit = {
     graphql: async (query: string, variables: Record<string, unknown>) => {
       if (query.includes("disablePullRequestAutoMerge")) {
@@ -167,7 +175,13 @@ function fakeOctokit(options: FakeOptions = {}) {
         listReviews: "listReviews",
         createReview: async (params: Record<string, unknown>) => {
           calls.order.push("approve");
+          if (options.approveError) throw options.approveError;
           calls.approvals.push(params);
+          reviews.push({
+            user: { login: BOT },
+            state: "APPROVED",
+            commit_id: String(params.commit_id),
+          });
           return {};
         },
         merge: async (params: Record<string, unknown>) => {
@@ -186,11 +200,24 @@ function fakeOctokit(options: FakeOptions = {}) {
         create: async (params: Record<string, unknown>) => {
           calls.order.push("claim");
           calls.checkCreates.push(params);
-          return { data: { id: 900 + calls.checkCreates.length } };
+          const id = 900 + calls.checkCreates.length;
+          ownRuns.push({
+            id,
+            status: "in_progress",
+            conclusion: null,
+            started_at: new Date().toISOString(),
+          });
+          return { data: { id } };
         },
         update: async (params: Record<string, unknown>) => {
           calls.order.push("complete");
           calls.checkUpdates.push(params);
+          const run = ownRuns.find((own) => own.id === params.check_run_id);
+          if (run) {
+            run.status = String(params.status);
+            run.conclusion = (params.conclusion as string | null) ?? null;
+          }
+          options.onVerdict?.();
           return {};
         },
       },
@@ -215,13 +242,13 @@ function fakeOctokit(options: FakeOptions = {}) {
       },
     },
     paginate: async (route: unknown, params: Record<string, unknown>) => {
-      if (route === "listReviews") return options.reviews ?? [];
+      if (route === "listReviews") return [...reviews];
       if (route === "listForRef") {
         // With a check name: the app looking up its own verdict.
         // Without: the rollup over every app's runs.
         if (params.check_name !== undefined) {
           calls.ownRunLookups.push(params);
-          return options.ownRuns ?? [];
+          return ownRuns.map((own) => ({ ...own }));
         }
         calls.rollups += 1;
         return options.ciRuns ?? [CI_PASSED];
@@ -255,6 +282,15 @@ interface Overrides {
   mode?: Mode;
   config?: typeof CONFIG;
 }
+
+const PARAMS = {
+  owner: "owner",
+  repo: "r",
+  pull_number: 1,
+  config: CONFIG,
+  appId: APP_ID,
+  botLogin: BOT,
+};
 
 function start(options: FakeOptions = {}, overrides: Overrides = {}) {
   const { octokit, anthropic, calls } = fakeOctokit(options);
@@ -512,7 +548,7 @@ describe("reconcile: stored verdict and modes", () => {
 describe("reconcile: approve and merge", () => {
   it("grades, approves the graded commit, and squash-merges it pinned to that commit", async () => {
     const calls = await run();
-    expect(calls.order).toEqual(["claim", "model", "complete", "approve", "merge"]);
+    expect(calls.order).toEqual(["claim", "model", "approve", "complete", "merge"]);
     expect(calls.approvals).toEqual([
       expect.objectContaining({ pull_number: 1, commit_id: "head1", event: "APPROVE" }),
     ]);
@@ -550,6 +586,29 @@ describe("reconcile: approve and merge", () => {
     expect(calls.order).toEqual(["merge"]);
   });
 
+  // Completing the app's check run completes its check suite, and GitHub
+  // delivers `check_suite.completed` back to the app. That act run starts
+  // while the grading run is still on its way to the approval.
+  it("approves once when its own verdict starts a second run", async () => {
+    let echo: Promise<void> | undefined;
+    const { octokit, anthropic, calls } = fakeOctokit({
+      ciRuns: [CI_RUNNING],
+      onVerdict: () => {
+        echo = reconcile(octokit as never, { ...PARAMS, mode: "act", anthropic: anthropic as never });
+      },
+    });
+    await reconcile(octokit as never, { ...PARAMS, mode: "grade", anthropic: anthropic as never });
+    await echo;
+    expect(calls.approvals).toHaveLength(1);
+  });
+
+  it("publishes the verdict when the approval before it fails, then fails on the retry", async () => {
+    const { done, calls } = start({ approveError: new Error("review refused") });
+    await expect(done).rejects.toThrow("review refused");
+    expect(calls.order).toEqual(["claim", "model", "approve", "complete", "approve"]);
+    expect(conclusionOf(calls)).toBe("success");
+  });
+
   it("approves again when the only approval is on an older commit", async () => {
     const calls = await run(
       {
@@ -563,7 +622,7 @@ describe("reconcile: approve and merge", () => {
 
   it("approves but waits to merge while checks are running", async () => {
     const calls = await run({ ciRuns: [CI_RUNNING] });
-    expect(calls.order).toEqual(["claim", "model", "complete", "approve"]);
+    expect(calls.order).toEqual(["claim", "model", "approve", "complete"]);
   });
 
   it("approves but never merges a repo with no CI", async () => {
@@ -663,7 +722,8 @@ describe("reconcile: the pull request changes while the model runs", () => {
     const calls = await run({
       prAfterGrade: { head: { sha: "head2", ref: "feature", repo: { full_name: "owner/r" } } },
     });
-    expect(calls.gets).toBe(2);
+    // Once at the start, once before the verdict, once after it.
+    expect(calls.gets).toBe(3);
     expect(calls.checkCreates[0].head_sha).toBe("head1");
     expect(calls.order).toEqual(graded);
   });
@@ -788,7 +848,7 @@ describe("reconcile: one-way doors never merge", () => {
 describe("reconcile: native auto-merge", () => {
   it("arms auto-merge for the graded commit where its own check is required", async () => {
     const calls = await run({ requiredChecks: OWN_CHECK_REQUIRED });
-    expect(calls.order).toEqual(["claim", "model", "complete", "approve", "arm"]);
+    expect(calls.order).toEqual(["claim", "model", "approve", "complete", "arm"]);
     expect(calls.arms).toEqual([
       { id: "PR_1", mergeMethod: "SQUASH", expectedHeadOid: "head1" },
     ]);
@@ -827,7 +887,7 @@ describe("reconcile: native auto-merge", () => {
     "something GitHub has never said before",
   ])("merges directly on a green rollup when GitHub refuses to arm: %s", async (armError) => {
     const calls = await run({ requiredChecks: OWN_CHECK_REQUIRED, armError });
-    expect(calls.order).toEqual(["claim", "model", "complete", "approve", "arm", "merge"]);
+    expect(calls.order).toEqual(["claim", "model", "approve", "complete", "arm", "merge"]);
     expect(calls.merges[0].sha).toBe("head1");
   });
 
@@ -873,7 +933,7 @@ describe("reconcile: disarming native auto-merge", () => {
       },
       { mode: "regrade" },
     );
-    expect(calls.order).toEqual(["disarm", "claim", "model", "complete", "approve", "arm"]);
+    expect(calls.order).toEqual(["disarm", "claim", "model", "approve", "complete", "arm"]);
   });
 
   it.each([
