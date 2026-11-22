@@ -29,9 +29,9 @@ Strict layering, pure core with I/O at the edges:
 - `src/policy.ts` — pure: config defaults, per-package glob overrides, and
   `decide()` — whether a PR's updates clear the policy; owns `IGNORE_LABEL`
 - `src/shepherd.ts` — orchestration: `reconcile()` fetches the PR, guards on
-  authorship, ensures a single approval at the head SHA, then merges
-  directly (`pulls.merge`, sha-pinned, configured method) once every check
-  run and status on the head is green. On a repo with workflow files, zero
+  authorship, then, once every check run and status on the head is green,
+  approves the head SHA if it has no approval and merges directly
+  (`pulls.merge`, sha-pinned, configured method). On a repo with workflow files, zero
   check runs means Actions has not started, so it waits even when commit
   statuses are green. Skipped checks pass. `Cursor Security
   Agent: Security Reviewer` is ignored — it never reports on Dependabot PRs,
@@ -66,9 +66,11 @@ Behavioral invariants to preserve:
   name their packages in the title; if any name has no body line, the
   PR is unparseable and is skipped. Group titles do not list packages,
   so they keep whatever body lines are present.
-- Approvals are idempotent per head SHA. The app is not subscribed to
-  `pull_request_review` or `issue_comment`, so its own approvals and rebase
-  comments cannot re-trigger it.
+- Approvals are idempotent per head SHA and happen only on a run that
+  finds the head green, immediately before the merge. Runs that overlap
+  at that moment can still each approve: the app has no lock. The app is
+  not subscribed to `pull_request_review` or `issue_comment`, so its own
+  approvals and rebase comments cannot re-trigger it.
 - Every handler is fetch-then-act (`reconcile()` converges): webhook
   redeliveries and event storms must stay safe to replay.
 - `app.yml` is the source of truth for the app's permissions and webhook

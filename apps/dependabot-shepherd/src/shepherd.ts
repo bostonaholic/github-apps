@@ -1,6 +1,6 @@
 // Orchestration: decide whether a Dependabot PR may merge and drive it
-// there — approve once per head commit, then merge directly once every
-// check run and status on the head is green. Idempotent: every webhook
+// there — once every check run and status on the head is green, approve
+// that head commit and merge directly. Idempotent: every webhook
 // re-enters here and re-running always converges.
 //
 // Native auto-merge is not used. Org rulesets require "Cursor Security
@@ -102,16 +102,6 @@ export async function reconcile(
     return;
   }
 
-  if (!isApprovedAtHead(reviews, pr.head.sha)) {
-    await octokit.rest.pulls.createReview({
-      owner,
-      repo,
-      pull_number,
-      event: "APPROVE",
-      body: `Auto-approved by dependabot-shepherd${facts.security ? " (security update)" : ""}: ${decision.reason}`,
-    });
-  }
-
   const rollup = await checksRollup(octokit, { owner, repo, ref: pr.head.sha });
   if (rollup === "pending") {
     // A later check_suite/status event re-enters reconcile.
@@ -121,6 +111,19 @@ export async function reconcile(
   if (rollup === "red") {
     log.warn(`${tag}: checks failing; not merging`);
     return;
+  }
+
+  // Approve only now, on the run that merges. Approving on every run
+  // stacked duplicates: the webhooks that follow a PR opening each start a
+  // run, and all of them list reviews before any approval exists.
+  if (!isApprovedAtHead(reviews, pr.head.sha)) {
+    await octokit.rest.pulls.createReview({
+      owner,
+      repo,
+      pull_number,
+      event: "APPROVE",
+      body: `Auto-approved by dependabot-shepherd${facts.security ? " (security update)" : ""}: ${decision.reason}`,
+    });
   }
 
   try {
