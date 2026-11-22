@@ -33,8 +33,8 @@ Claude can raise the risk or declare a one-way door. It cannot lower a
 result that a rule produced.
 
 The check run shows each level with a traffic light: 🟢 Low, 🟡 Medium,
-🔴 High. It shows the door as 🔄 two-way (reversible) or ⛔ one-way
-(irreversible), and the decision as 🟢 AUTO-MERGE or 🔴 NEEDS A PERSON.
+🔴 High. It shows the door as 🔄 Reversible (two-way) or ⛔ Irreversible
+(one-way), and the decision as 🟢 Merge or 🔴 Review (a person merges).
 
 ### One-way doors
 

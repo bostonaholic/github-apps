@@ -21,10 +21,11 @@ const LEVEL_LABEL: Record<Level, string> = {
   high: "🔴 High",
 };
 
-// The door in the words most people use for it: can a revert undo this?
+// The door in the word most people use for it: can a revert undo this?
+// One word per cell; the Why line and the reasons list carry the detail.
 const DOOR_LABEL: Record<Door, string> = {
-  "two-way": "🔄 two-way (reversible)",
-  "one-way": "⛔ one-way (irreversible)",
+  "two-way": "🔄 Reversible",
+  "one-way": "⛔ Irreversible",
 };
 
 const MAX_LISTED = 10;
@@ -61,7 +62,7 @@ export function checkOutput(grade: Grade, verdict: Verdict): CheckOutput {
       axis(assessment?.data_security),
       axis(assessment?.recovery),
       DOOR_LABEL[grade.door],
-      verdict.eligible ? "🟢 AUTO-MERGE" : "🔴 NEEDS A PERSON",
+      verdict.eligible ? "🟢 Merge" : "🔴 Review",
       assessment ? `${grade.confidence}%` : "—",
     ].join(" | ")} |`,
     "",

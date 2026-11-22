@@ -62,7 +62,7 @@ describe("checkOutput", () => {
   it("renders the table from the grade's enums", () => {
     const { summary } = checkOutput(grade(), BLOCKED);
     expect(summary).toContain(
-      "| 🟡 Medium | 🟢 Low | 🟡 Medium | 🟢 Low | 🔄 two-way (reversible) | 🔴 NEEDS A PERSON | 95% |",
+      "| 🟡 Medium | 🟢 Low | 🟡 Medium | 🟢 Low | 🔄 Reversible | 🔴 Review | 95% |",
     );
     expect(summary).toContain("**Why:** risk is medium");
     expect(summary).toContain("**Summary:** CI-only change to test selection.");
@@ -87,7 +87,7 @@ describe("checkOutput", () => {
       }),
       BLOCKED,
     );
-    expect(summary).toContain(`| ${label} | ${label} | ${label} | ${label} | 🔄 two-way (reversible) |`);
+    expect(summary).toContain(`| ${label} | ${label} | ${label} | ${label} | 🔄 Reversible |`);
     expect(summary).toContain(`- ${label}: something to look at`);
   });
 
@@ -96,14 +96,14 @@ describe("checkOutput", () => {
       grade({ door: "one-way", doorReasons: ["data change: a.sql"] }),
       BLOCKED,
     );
-    expect(summary).toContain("| ⛔ one-way (irreversible) | 🔴 NEEDS A PERSON |");
-    expect(summary).not.toContain("two-way");
+    expect(summary).toContain("| ⛔ Irreversible | 🔴 Review |");
+    expect(summary).not.toContain("🔄");
   });
 
   it("titles and marks an eligible grade", () => {
     const { title, summary } = checkOutput(grade({ risk: "low" }), ELIGIBLE);
     expect(title).toBe("Eligible for auto-merge");
-    expect(summary).toContain("| 🟢 AUTO-MERGE |");
+    expect(summary).toContain("| 🟢 Merge |");
   });
 
   it("titles a blocked grade with the reason", () => {
@@ -115,7 +115,7 @@ describe("checkOutput", () => {
       grade({ risk: "high", confidence: 0, assessment: null, ungraded: "no changed files" }),
       { eligible: false, reason: "not graded: no changed files" },
     );
-    expect(summary).toContain("| 🔴 High | — | — | — | 🔄 two-way (reversible) | 🔴 NEEDS A PERSON | — |");
+    expect(summary).toContain("| 🔴 High | — | — | — | 🔄 Reversible | 🔴 Review | — |");
     expect(summary).not.toContain("**Summary:**");
     expect(summary).not.toContain("**Findings**");
   });
