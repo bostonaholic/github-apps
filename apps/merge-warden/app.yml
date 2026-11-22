@@ -16,7 +16,8 @@ default_events:
   - status
 
 default_permissions:
-  # Read PRs and reviews, approve, enable and disable auto-merge.
+  # Read PRs and reviews, approve, enable and disable auto-merge, and
+  # post the grade comment.
   pull_requests: write
   # Merging creates a commit; also reading the diff and the repo config.
   contents: write

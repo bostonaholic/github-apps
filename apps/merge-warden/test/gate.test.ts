@@ -68,6 +68,9 @@ interface FakeOptions {
   // Called when a check run completes: the moment GitHub delivers the
   // app's own `check_suite.completed`.
   onVerdict?: () => void;
+  // Issue comments already on the pull request.
+  comments?: { id: number; user: { login: string } | null; body: string }[];
+  commentError?: Error;
 }
 
 const LOW_RISK: Assessment = {
@@ -123,6 +126,8 @@ function fakeOctokit(options: FakeOptions = {}) {
     merges: [] as Record<string, unknown>[],
     arms: [] as Record<string, unknown>[],
     disarms: [] as Record<string, unknown>[],
+    commentCreates: [] as Record<string, unknown>[],
+    commentUpdates: [] as Record<string, unknown>[],
   };
 
   const files = options.files ?? DOCS_CHANGE;
@@ -221,6 +226,18 @@ function fakeOctokit(options: FakeOptions = {}) {
           return {};
         },
       },
+      issues: {
+        listComments: "listComments",
+        createComment: async (params: Record<string, unknown>) => {
+          if (options.commentError) throw options.commentError;
+          calls.commentCreates.push(params);
+          return {};
+        },
+        updateComment: async (params: Record<string, unknown>) => {
+          calls.commentUpdates.push(params);
+          return {};
+        },
+      },
       repos: {
         compareCommitsWithBasehead: async (params: Record<string, unknown>) => {
           calls.compares.push(params);
@@ -243,6 +260,7 @@ function fakeOctokit(options: FakeOptions = {}) {
     },
     paginate: async (route: unknown, params: Record<string, unknown>) => {
       if (route === "listReviews") return [...reviews];
+      if (route === "listComments") return options.comments ?? [];
       if (route === "listForRef") {
         // With a check name: the app looking up its own verdict.
         // Without: the rollup over every app's runs.
@@ -322,7 +340,7 @@ const conclusionOf = (calls: Calls) =>
 const titleOf = (calls: Calls) =>
   (calls.checkUpdates[0] as { output: { title: string } }).output.title;
 const summaryOf = (calls: Calls) =>
-  (calls.checkUpdates[0] as { output: { summary: string } }).output.summary;
+  String((calls.commentCreates[0] as { body: string }).body);
 
 describe("reconcile: scope", () => {
   it("does nothing, not even a fetch, when disabled", async () => {
@@ -1005,5 +1023,45 @@ describe("reconcile: disarming native auto-merge", () => {
     expect(calls.order).toEqual(["disarm"]);
     expect(calls.checkCreates).toHaveLength(0);
     expect(calls.assessments).toHaveLength(0);
+  });
+});
+
+describe("reconcile: grade comment", () => {
+  it("posts the grade as a comment on the pull request", async () => {
+    const calls = await run();
+    expect(calls.commentCreates).toEqual([
+      expect.objectContaining({
+        issue_number: 1,
+        body: expect.stringContaining("<!-- merge-warden: grade -->"),
+      }),
+    ]);
+    expect(summaryOf(calls)).toContain("**Findings**");
+  });
+
+  it("edits its own comment instead of adding another", async () => {
+    const calls = await run({
+      comments: [{ id: 77, user: { login: BOT }, body: "<!-- merge-warden: grade -->\nold" }],
+    });
+    expect(calls.commentCreates).toHaveLength(0);
+    expect(calls.commentUpdates).toEqual([expect.objectContaining({ comment_id: 77 })]);
+  });
+
+  it("ignores the marker in someone else's comment", async () => {
+    const calls = await run({
+      comments: [{ id: 78, user: { login: "stranger" }, body: "<!-- merge-warden: grade -->" }],
+    });
+    expect(calls.commentUpdates).toHaveLength(0);
+    expect(calls.commentCreates).toHaveLength(1);
+  });
+
+  it("still merges when the comment fails", async () => {
+    const calls = await run({ commentError: new Error("comment refused") });
+    expect(conclusionOf(calls)).toBe("success");
+    expect(calls.merges).toHaveLength(1);
+  });
+
+  it("posts nothing when the event only acts on a stored verdict", async () => {
+    const calls = await run({ ownRuns: [verdict("success")] }, { mode: "act" });
+    expect(calls.commentCreates).toHaveLength(0);
   });
 });

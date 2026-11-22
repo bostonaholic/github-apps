@@ -35,8 +35,9 @@ Strict layering, pure core with I/O at the edges:
 - `src/checks.ts` — I/O: `checksRollup` over check runs and commit
   statuses; green needs every check named in `ci_checks`. A copy of
   dependabot-shepherd's with three differences listed in its header
-- `src/format.ts` — pure: check-run title and markdown; `plainText`
-  flattens every untrusted string before it is rendered
+- `src/format.ts` — pure: check-run title and short summary, and the
+  sticky grade comment body (`commentBody`, found by `COMMENT_MARKER`);
+  `plainText` flattens every untrusted string before it is rendered
 - `src/assess.ts` — I/O: the one model call (`client.messages.parse` with
   a zod schema); returns `null` on refusal, truncation, schema failure,
   or any SDK error
@@ -80,7 +81,12 @@ Behavioral invariants to preserve:
   that overlap can still each approve: the claim is the app's only lock.
 - Labels, draft state, and reviews are read live on every event. A stored
   `success` never overrides them.
-- Nothing the model wrote goes into a review body.
+- Nothing the model wrote goes into a review body. The grade comment
+  carries model text only through `plainText`.
+- The grade comment is posted after the verdict is published and only
+  reports it. A failed comment is logged and never changes the verdict,
+  the approval, or the merge. Only a comment by this app's login with the
+  marker is edited.
 - A successful check is not CI unless the repo names it in `ci_checks`.
   With no names the app never merges directly. Deploy previews and status
   bots report success on every commit.

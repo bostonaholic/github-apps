@@ -14,7 +14,9 @@ branch, the app:
 1. Reads the changed files and runs deterministic rules over the paths
    and the diff size.
 2. Sends the diff (not the title or description) to Claude for a grade.
-3. Writes a `merge-warden` check run on the head commit with the result.
+3. Writes a `merge-warden` check run on the head commit with the verdict,
+   and posts the grade and findings as one comment on the pull request.
+   Each new grade edits that comment instead of adding another.
 4. If the pull request is eligible, approves it and merges it once CI is
    green.
 
@@ -32,7 +34,7 @@ branch, the app:
 Claude can raise the risk or declare a one-way door. It cannot lower a
 result that a rule produced.
 
-The check run shows each level with a traffic light: 🟢 Low, 🟡 Medium,
+The comment shows each level with a traffic light: 🟢 Low, 🟡 Medium,
 🔴 High. It shows the door as 🔄 Reversible (two-way) or ⛔ Irreversible
 (one-way), and the decision as 🟢 Merge or 🔴 Review (a person merges).
 
@@ -191,7 +193,8 @@ repo registers with the `-bostonaholic` suffix (see the root `AGENTS.md`,
 Required permissions and events (declared in `app.yml`):
 
 - **Pull requests: write** — read pull requests and reviews, approve,
-  enable and disable auto-merge
+  enable and disable auto-merge, and post the grade comment (issue
+  comments on a pull request need no Issues permission)
 - **Contents: write** — merging creates a commit; also reading the diff
   and the repo config
 - **Checks: write** — the app's own verdict check run, other apps' check
