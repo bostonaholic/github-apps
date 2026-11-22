@@ -131,7 +131,7 @@ export async function runCheck(
   const stickyUrl = await syncStickyComment(
     octokit,
     params,
-    sticky ? { id: sticky.id, body: sticky.body ?? "", html_url: sticky.html_url } : null,
+    sticky ? { id: Number(sticky.id), body: sticky.body ?? "", html_url: sticky.html_url } : null,
     stickyBody,
   );
 
