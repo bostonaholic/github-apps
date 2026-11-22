@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- The sticky comment ends with a footer naming the app version and the
+  7-character commit SHA of the deployed build, e.g.
+  `task-list-completed v0.2.0 · cb6ab00`.
+
 ### Fixed
 
 - The app no longer re-posts an identical `task-list-completed` status on

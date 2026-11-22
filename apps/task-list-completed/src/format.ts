@@ -1,5 +1,7 @@
 // Pure functions that build the commit status and the sticky comment body.
 
+import { BUILD_FOOTER } from "./build.js";
+
 export const STATUS_CONTEXT = "task-list-completed";
 export const STICKY_MARKER = "<!-- task-list: sticky-comment -->";
 export const DISABLE_LABEL = "task-list: disabled";
@@ -64,7 +66,9 @@ export function buildStickyBody(
     return `${STICKY_MARKER}
 ### ✅ Task list: all ${total} ${tasks(total)} complete
 
-Nothing outstanding — the \`${STATUS_CONTEXT}\` status is green.`;
+Nothing outstanding — the \`${STATUS_CONTEXT}\` status is green.
+
+${BUILD_FOOTER}`;
   }
 
   const items = outstanding
@@ -81,5 +85,7 @@ ${items}
 
 <sub>Checkboxes that are just notes? Add \`<!-- task-list: ignore -->\` to that
 comment, or disable the gate for this PR with \`<!-- task-list: disable -->\`
-in the description or the \`${DISABLE_LABEL}\` label.</sub>`;
+in the description or the \`${DISABLE_LABEL}\` label.</sub>
+
+${BUILD_FOOTER}`;
 }
