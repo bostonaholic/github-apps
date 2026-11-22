@@ -4,7 +4,9 @@ This file provides guidance to AI coding agents (Claude Code, Codex, Gemini CLI,
 
 ## Repository layout
 
-Monorepo of GitHub Apps. Each app lives in its own directory under `apps/`
+Monorepo of GitHub Apps for agentic software engineering: each app
+automates one step of the pull request workflow that coding agents drive
+(merge gates, dependency updates). Each app lives in its own directory under `apps/`
 and is fully self-contained: its own `package.json`, dependencies, README,
 and deployment. Run all npm commands from inside the app's directory
 (`apps/<app>/`), not the repo root (the root has no `package.json`). Shared
