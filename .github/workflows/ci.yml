@@ -1,0 +1,87 @@
+# Per-app CI.
+#
+# This one workflow runs on every pull request and every push to main, so
+# the `CI` check exists on every change. Per-app workflows filtered with
+# `on.<event>.paths` would create no check at all when their paths do not
+# match, and a check that is required or waited on would stay missing.
+#
+#   changes  selects the apps to test (.github/scripts/changed-apps.sh)
+#   app      one job per selected app, named `app (<app>)`
+#   ci       the check named `CI`: succeeds when `changes` succeeded and no
+#            `app` job failed or was cancelled, including when no app was
+#            selected
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to a pull request cancels that pull request's older run. Each
+# push to main gets its own group, so no run on main is cancelled.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.select.outputs.apps }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # changed-apps.sh diffs from the merge base of the two SHAs, which
+          # can be any number of commits back. A shallow clone lacks it.
+          fetch-depth: 0
+          persist-credentials: false
+      - id: select
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          apps=$(.github/scripts/changed-apps.sh "$BASE" "$HEAD")
+          echo "apps=$apps" | tee -a "$GITHUB_OUTPUT"
+
+  app:
+    needs: changes
+    # An empty matrix is a workflow error, so skip the job instead.
+    if: needs.changes.outputs.apps != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.changes.outputs.apps) }}
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/${{ matrix.app }}/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  ci:
+    name: CI
+    needs: [changes, app]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          APP: ${{ needs.app.result }}
+        run: |
+          echo "changes: $CHANGES, app: $APP"
+          [[ "$CHANGES" == success && ( "$APP" == success || "$APP" == skipped ) ]]

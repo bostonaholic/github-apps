@@ -31,6 +31,21 @@ scanned. Each entry uses the app's Conventional Commits scope
 majors and security updates as individual PRs. Adding an app means adding
 a matching entry.
 
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request and every push to
+`main`. `.github/scripts/changed-apps.sh <base> <head>` selects the apps
+to test: an app with a changed file under `apps/<app>/`, or every app
+when a path in the script's `SHARED_PATHS` changed (today the workflow
+and the script). Each selected app gets its own check, `app (<app>)`:
+`npm ci`, `npm run typecheck`, `npm test`, `npm run build`. The `CI`
+check runs on every change and succeeds when no selected app failed,
+including when no app was selected. Require or wait on `CI`, never on an
+`app (<app>)` check, which does not exist when its app is not selected.
+
+Apps are discovered from `apps/*/package.json`, so adding an app needs no
+CI entry. A shared code directory is one more entry in `SHARED_PATHS`.
+
 ## App registration names
 
 GitHub App names are globally unique across all of GitHub (not namespaced
