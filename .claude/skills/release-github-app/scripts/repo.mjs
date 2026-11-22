@@ -27,7 +27,9 @@ export const repoRoot = () => run("git", ["rev-parse", "--show-toplevel"]);
 
 // Paths for one app; exits if the app directory is not a package.
 export function appPaths(app) {
-  if (!app || app.includes("/")) fail(`usage: <app> must be a directory name under apps/`);
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(app ?? "")) {
+    fail(`usage: <app> must be a directory name under apps/ (got ${JSON.stringify(app)})`);
+  }
   const root = repoRoot();
   const dir = join(root, "apps", app);
   const pkg = join(dir, "package.json");
