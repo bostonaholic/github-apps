@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The app no longer re-posts an identical `task-list-completed` status on
+  every event. It now posts only when the state, description, or link
+  differs from the head's newest status. A newly opened PR used to collect
+  a dozen duplicate statuses in its first seconds, each one a `status`
+  webhook to every app that listens for them. Events that arrive within
+  about a second of each other can still post duplicates.
+
 ## [0.2.0] - 2026-08-22
 
 ### Fixed

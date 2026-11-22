@@ -11,11 +11,13 @@ interface FakeOptions {
   comments?: { id: number; body: string; html_url: string; created_at: string }[];
   reviews?: { body: string | null; html_url: string; submitted_at: string }[];
   reviewComments?: { body: string; html_url: string; created_at: string }[];
+  // Statuses already on the head commit, oldest first.
+  statuses?: Record<string, unknown>[];
 }
 
 function fakeOctokit(options: FakeOptions = {}) {
   const calls = {
-    statuses: [] as Record<string, unknown>[],
+    statuses: [...(options.statuses ?? [])] as Record<string, unknown>[],
     created: [] as Record<string, unknown>[],
     updated: [] as Record<string, unknown>[],
     deleted: [] as Record<string, unknown>[],
@@ -57,6 +59,15 @@ function fakeOctokit(options: FakeOptions = {}) {
         createCommitStatus: async (params: Record<string, unknown>) => {
           calls.statuses.push(params);
           return {};
+        },
+        // Like GitHub, the combined status holds only the newest status per
+        // context, newest first.
+        getCombinedStatusForRef: async () => {
+          const newest = new Map<unknown, Record<string, unknown>>();
+          for (const status of [...calls.statuses].reverse()) {
+            if (!newest.has(status.context)) newest.set(status.context, status);
+          }
+          return { data: { statuses: [...newest.values()] } };
         },
       },
     },
@@ -269,6 +280,37 @@ describe("runCheck", () => {
       ],
     });
     expect(calls.statuses[0].description).toBe("All 1 task complete");
+  });
+
+  it("posts one status when two events deliver the same PR state", async () => {
+    const { octokit, calls } = fakeOctokit({ pr: { body: "- [ ] task" } });
+    // e.g. pull_request.labeled, then pull_request_review.submitted with no
+    // body: neither changes the task state.
+    await runCheck(octokit as never, params);
+    await runCheck(octokit as never, params);
+
+    expect(calls.statuses).toHaveLength(1);
+  });
+
+  it("posts when the head's newest status differs", async () => {
+    const calls = await check({
+      pr: { body: "- [x] task" },
+      statuses: [
+        {
+          sha: "abc123",
+          context: "task-list-completed",
+          state: "failure",
+          description: "1 of 1 task remaining",
+          target_url: "https://github.com/o/r/pull/1#issuecomment-999",
+        },
+      ],
+    });
+
+    expect(calls.statuses).toHaveLength(2);
+    expect(calls.statuses[1]).toMatchObject({
+      state: "success",
+      description: "All 1 task complete",
+    });
   });
 
   it("does nothing for a closed pull request", async () => {

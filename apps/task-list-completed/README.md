@@ -40,7 +40,8 @@ and labels changed.
 | No tasks anywhere | 🟢 `success` | `No tasks found` |
 | Gate disabled (see below) | 🟢 `success` | `Task list checks are disabled` |
 
-The status links to the sticky comment when one exists.
+The status links to the sticky comment when one exists. A recount that
+leaves the status unchanged posts nothing new.
 
 ## Switching it off
 
