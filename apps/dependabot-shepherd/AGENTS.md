@@ -31,7 +31,9 @@ Strict layering, pure core with I/O at the edges:
 - `src/shepherd.ts` — orchestration: `reconcile()` fetches the PR, guards on
   authorship, ensures a single approval at the head SHA, then merges
   directly (`pulls.merge`, sha-pinned, configured method) once every check
-  run and status on the head is green. Skipped checks pass. `Cursor Security
+  run and status on the head is green. On a repo with workflow files, zero
+  check runs means Actions has not started, so it waits even when commit
+  statuses are green. Skipped checks pass. `Cursor Security
   Agent: Security Reviewer` is ignored — it never reports on Dependabot PRs,
   which is why native auto-merge is not used.
 - `src/rebase.ts` — orchestration: on default-branch pushes, comments

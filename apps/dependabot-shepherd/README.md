@@ -55,7 +55,12 @@ requested changes.
 > statuses), an allowed update merges immediately after approval.
 > Zero-touch is the point — but know that this is the behavior before
 > installing the app on such repos. On repos that *do* have workflow
-> files, the app waits for checks to appear and finish before merging.
+> files, the app waits for at least one check run to appear and for
+> everything to finish before merging. A green commit status does not
+> count as CI having started, because other apps post statuses before
+> GitHub Actions creates its check runs. If none of a repo's workflows
+> run on pull requests, no check run ever appears and the app never
+> merges there.
 
 ## Rebasing
 
