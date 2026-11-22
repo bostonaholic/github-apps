@@ -1,0 +1,29 @@
+# GitHub App manifest defaults, used by Probot's setup flow (`npm start`
+# with no APP_ID configured) to register the app.
+# App names are globally unique on GitHub; registrations from this repo
+# take the -bostonaholic suffix (see root AGENTS.md).
+name: merge-warden-bostonaholic
+url: https://github.com/bostonaholic/github-apps
+description: >-
+  Grades pull requests on risk and auto-merges the low-risk two-way-door
+  ones. One-way-door pull requests are never auto-merged.
+
+default_events:
+  - pull_request
+  - pull_request_review
+  - check_suite
+  - check_run
+  - status
+
+default_permissions:
+  # Read PRs and reviews, approve, enable and disable auto-merge.
+  pull_requests: write
+  # Merging creates a commit; also reading the diff and the repo config.
+  contents: write
+  # The app's own verdict check run, other apps' check runs for the
+  # rollup, and the check_suite and check_run webhooks.
+  checks: write
+  # Combined commit status and the status webhook (legacy CI).
+  statuses: read
+
+public: false
