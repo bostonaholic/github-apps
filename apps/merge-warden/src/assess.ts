@@ -9,7 +9,13 @@ import type { Logger } from "./gate.js";
 import type { Assessment } from "./grade.js";
 import type { ChangedFile } from "./signals.js";
 
-export const MODEL = "claude-sonnet-5-5";
+export const DEFAULT_MODEL = "claude-haiku-5-5";
+
+// ANTHROPIC_MODEL overrides the model without a code change. Unset or
+// blank means DEFAULT_MODEL.
+export function modelFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+  return env.ANTHROPIC_MODEL?.trim() || DEFAULT_MODEL;
+}
 
 const LevelSchema = z.enum(["low", "medium", "high"]);
 
@@ -78,7 +84,7 @@ export async function assess(
 ): Promise<Assessment | null> {
   try {
     const response = await client.messages.parse({
-      model: MODEL,
+      model: modelFromEnv(),
       max_tokens: 16000,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: renderDiff(files) }],
