@@ -15,27 +15,54 @@ type ReconcileEvent =
   | "check_run"
   | "status";
 
-// Reads `.github/merge-warden.yml` from the repo's default branch (Probot
-// also falls back to the owner's .github repo). Never read from the PR
-// head, so a PR cannot change the policy that grades it.
-async function run(
-  context: Context<ReconcileEvent>,
-  pull_number: number,
-  mode: Mode,
-): Promise<void> {
-  const { owner, repo } = context.repo();
-  const raw = await context.config(CONFIG_FILE);
-  await reconcile(context.octokit, {
-    owner,
-    repo,
-    pull_number,
-    mode,
-    config: normalizeConfig(raw as Record<string, unknown> | null, owner),
-    log: context.log,
-  });
+interface Identity {
+  appId: number;
+}
+
+// Who this app is, asked of GitHub once per process. A failed lookup is
+// not cached, so the next event asks again.
+function identityOf(app: Probot): () => Promise<Identity> {
+  let cached: Promise<Identity> | undefined;
+  return () => {
+    cached ??= app
+      .auth()
+      .then((octokit) => octokit.rest.apps.getAuthenticated())
+      .then(({ data }) => {
+        if (!data) throw new Error("GitHub returned no app for these credentials");
+        return { appId: data.id };
+      })
+      .catch((error: unknown) => {
+        cached = undefined;
+        throw error;
+      });
+    return cached;
+  };
 }
 
 export default (app: Probot) => {
+  const identity = identityOf(app);
+
+  // Reads `.github/merge-warden.yml` from the repo's default branch (Probot
+  // also falls back to the owner's .github repo). Never read from the PR
+  // head, so a PR cannot change the policy that grades it.
+  async function run(
+    context: Context<ReconcileEvent>,
+    pull_number: number,
+    mode: Mode,
+  ): Promise<void> {
+    const { owner, repo } = context.repo();
+    const raw = await context.config(CONFIG_FILE);
+    await reconcile(context.octokit, {
+      owner,
+      repo,
+      pull_number,
+      mode,
+      config: normalizeConfig(raw as Record<string, unknown> | null, owner),
+      ...(await identity()),
+      log: context.log,
+    });
+  }
+
   // A new head commit, or a PR entering review: grade it.
   app.on(
     [

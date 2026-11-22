@@ -16,10 +16,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "picomatch": "^4.0.7",
     "probot": "^14.3.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "@types/picomatch": "^4.0.3",
     "smee-client": "^5.0.0",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"

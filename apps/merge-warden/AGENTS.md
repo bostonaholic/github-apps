@@ -25,7 +25,16 @@ Strict layering, pure core with I/O at the edges:
 
 - `src/config.ts` — pure: repo config defaults and normalization, and the
   two label names the app reads
-- `src/gate.ts` — I/O: `reconcile()`, the single orchestration entry point
+- `src/signals.ts` — pure: path globs and diff size → one-way-door
+  reasons, risk floor, and whether the diff can be graded whole
+- `src/grade.ts` — pure: signals + model assessment + labels → `Grade`
+- `src/policy.ts` — pure: scope test and `gradeVerdict` (the one-way-door
+  test is its first branch); thresholds are constants here
+- `src/format.ts` — pure: check-run title and markdown; `plainText`
+  flattens every untrusted string before it is rendered
+- `src/gate.ts` — I/O: `reconcile()`, the single orchestration entry
+  point; the app's own check run on the head commit is the only stored
+  state
 - `src/index.ts` — Probot event wiring only; reads
   `.github/merge-warden.yml`, maps each event to a `Mode`, and delegates
 - `api/github/webhooks/index.js` — Vercel serverless entry point wrapping
@@ -46,6 +55,12 @@ Behavioral invariants to preserve:
   (checks, statuses, reviews) reuse the stored verdict.
 - Config is read from the default branch, never from the pull request
   head.
+- The check run never concludes `failure`. `success` means eligible,
+  `neutral` means a person merges, so a required `merge-warden` check
+  cannot block a manual merge.
+- Own check runs are found by app id, never by name alone.
+- The model never sees a partial diff. A diff that cannot be sent whole
+  is not graded.
 - `app.yml` is the source of truth for the app's permissions and webhook
   events. Subscribing to a new event in `index.ts` requires adding it to
   `app.yml` too (and existing installations must accept the new permissions).
