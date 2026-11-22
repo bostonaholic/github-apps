@@ -136,6 +136,26 @@ export async function runCheck(
   );
 
   const status = buildStatus({ disabled, total, outstanding: outstanding.length });
+
+  // Most events leave the task state unchanged. Re-posting an identical
+  // status adds a row to the commit and fires a `status` webhook at every
+  // app that listens for one, so skip it.
+  const { data: combined } = await octokit.rest.repos.getCombinedStatusForRef({
+    owner,
+    repo,
+    ref: pr.head.sha,
+    per_page: 100,
+  });
+  const current = combined.statuses.find((s) => s.context === STATUS_CONTEXT);
+  if (
+    current &&
+    current.state === status.state &&
+    current.description === status.description &&
+    (current.target_url ?? null) === stickyUrl
+  ) {
+    return;
+  }
+
   await octokit.rest.repos.createCommitStatus({
     owner,
     repo,
