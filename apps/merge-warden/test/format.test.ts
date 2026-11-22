@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkOutput, plainText } from "../src/format.js";
+import { COMMENT_MARKER, checkOutput, commentBody, plainText } from "../src/format.js";
 import type { Assessment, Grade } from "../src/grade.js";
 
 const ASSESSMENT: Assessment = {
@@ -28,6 +28,12 @@ function grade(overrides: Partial<Grade> = {}): Grade {
 
 const ELIGIBLE = { eligible: true, reason: "two-way door, low risk, confidence 95%" };
 const BLOCKED = { eligible: false, reason: "risk is medium" };
+const SHA = "abc1234def5678";
+
+// The check title and the comment body: what a person reads.
+function rendered(g: Grade, v: { eligible: boolean; reason: string }) {
+  return { title: checkOutput(g, v).title, summary: commentBody(g, v, SHA) };
+}
 
 describe("plainText", () => {
   it("replaces links and images with their label", () => {
@@ -58,9 +64,34 @@ describe("plainText", () => {
   });
 });
 
-describe("checkOutput", () => {
-  it("renders the table from the grade's enums", () => {
+describe("checkOutput summary", () => {
+  it("gives the reason and points at the comment, without the findings", () => {
     const { summary } = checkOutput(grade(), BLOCKED);
+    expect(summary).toContain("**Why:** risk is medium");
+    expect(summary).toContain("merge-warden comment on the pull request");
+    expect(summary).not.toContain("| Risk |");
+    expect(summary).not.toContain("**Findings**");
+  });
+});
+
+describe("commentBody frame", () => {
+  it("starts with the marker and names the graded commit", () => {
+    const body = commentBody(grade(), BLOCKED, SHA);
+    expect(body.startsWith(COMMENT_MARKER)).toBe(true);
+    expect(body).toContain("### ⚠️ merge-warden: needs a person");
+    expect(body).toContain("Graded commit abc1234.");
+  });
+
+  it("heads an eligible grade as eligible", () => {
+    expect(commentBody(grade({ risk: "low" }), ELIGIBLE, SHA)).toContain(
+      "### ✅ merge-warden: eligible for auto-merge",
+    );
+  });
+});
+
+describe("commentBody report", () => {
+  it("renders the table from the grade's enums", () => {
+    const { summary } = rendered(grade(), BLOCKED);
     expect(summary).toContain(
       "| 🟡 Medium | 🟢 Low | 🟡 Medium | 🟢 Low | 🔄 Reversible | 🔴 Review | 95% |",
     );
@@ -74,7 +105,7 @@ describe("checkOutput", () => {
     ["medium", "🟡 Medium"],
     ["high", "🔴 High"],
   ] as const)("marks %s with its traffic light in every graded column and finding", (level, label) => {
-    const { summary } = checkOutput(
+    const { summary } = rendered(
       grade({
         risk: level,
         assessment: {
@@ -92,7 +123,7 @@ describe("checkOutput", () => {
   });
 
   it("marks a one-way door as irreversible in the table", () => {
-    const { summary } = checkOutput(
+    const { summary } = rendered(
       grade({ door: "one-way", doorReasons: ["data change: a.sql"] }),
       BLOCKED,
     );
@@ -101,17 +132,17 @@ describe("checkOutput", () => {
   });
 
   it("titles and marks an eligible grade", () => {
-    const { title, summary } = checkOutput(grade({ risk: "low" }), ELIGIBLE);
+    const { title, summary } = rendered(grade({ risk: "low" }), ELIGIBLE);
     expect(title).toBe("Eligible for auto-merge");
     expect(summary).toContain("| 🟢 Merge |");
   });
 
   it("titles a blocked grade with the reason", () => {
-    expect(checkOutput(grade(), BLOCKED).title).toBe("Needs a person: risk is medium");
+    expect(rendered(grade(), BLOCKED).title).toBe("Needs a person: risk is medium");
   });
 
   it("shows dashes and no summary when there is no assessment", () => {
-    const { summary } = checkOutput(
+    const { summary } = rendered(
       grade({ risk: "high", confidence: 0, assessment: null, ungraded: "no changed files" }),
       { eligible: false, reason: "not graded: no changed files" },
     );
@@ -123,7 +154,7 @@ describe("checkOutput", () => {
   it("says why there is no assessment, even when the verdict names another reason", () => {
     // A one-way door outranks "not graded" in the verdict, so without this
     // line the dashes in the table would have no explanation.
-    const { summary } = checkOutput(
+    const { summary } = rendered(
       grade({
         door: "one-way",
         doorReasons: ["security and access: .env.example"],
@@ -139,11 +170,11 @@ describe("checkOutput", () => {
   });
 
   it("has no not-graded line when the diff was assessed", () => {
-    expect(checkOutput(grade(), BLOCKED).summary).not.toContain("**Not graded:**");
+    expect(rendered(grade(), BLOCKED).summary).not.toContain("**Not graded:**");
   });
 
   it("flattens the not-graded reason, which can hold a file path", () => {
-    const { summary } = checkOutput(
+    const { summary } = rendered(
       grade({ assessment: null, ungraded: "no text diff for a|b/[x](https://evil.example).png" }),
       BLOCKED,
     );
@@ -152,7 +183,7 @@ describe("checkOutput", () => {
   });
 
   it("lists door and floor reasons", () => {
-    const { summary } = checkOutput(
+    const { summary } = rendered(
       grade({
         door: "one-way",
         doorReasons: ["data change: db/migrations/1.sql"],
@@ -167,7 +198,7 @@ describe("checkOutput", () => {
   });
 
   it("lists findings with their severity", () => {
-    const { summary } = checkOutput(
+    const { summary } = rendered(
       grade({
         assessment: {
           ...ASSESSMENT,
@@ -182,14 +213,14 @@ describe("checkOutput", () => {
 
   it("caps a long reason list", () => {
     const doorReasons = Array.from({ length: 14 }, (_, i) => `data change: m${i}.sql`);
-    const { summary } = checkOutput(grade({ door: "one-way", doorReasons }), BLOCKED);
+    const { summary } = rendered(grade({ door: "one-way", doorReasons }), BLOCKED);
     expect(summary).toContain("- data change: m9.sql");
     expect(summary).not.toContain("m10.sql");
     expect(summary).toContain("- and 4 more");
   });
 
   it("flattens model text so it cannot forge a table or a link", () => {
-    const { summary } = checkOutput(
+    const { summary } = rendered(
       grade({
         assessment: {
           ...ASSESSMENT,
@@ -207,7 +238,7 @@ describe("checkOutput", () => {
   });
 
   it("flattens a file path used as a reason", () => {
-    const { summary } = checkOutput(
+    const { summary } = rendered(
       grade({ door: "one-way", doorReasons: ["data change: a|b/[x](https://evil.example).sql"] }),
       BLOCKED,
     );

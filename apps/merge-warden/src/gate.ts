@@ -16,8 +16,8 @@ import { assess } from "./assess.js";
 import { armAutoMerge, disarmAutoMerge, requiresOwnCheck } from "./automerge.js";
 import { checksRollup } from "./checks.js";
 import type { WardenConfig } from "./config.js";
-import { CHECK_NAME, checkOutput } from "./format.js";
-import { buildGrade } from "./grade.js";
+import { CHECK_NAME, COMMENT_MARKER, checkOutput, commentBody } from "./format.js";
+import { buildGrade, type Grade } from "./grade.js";
 import {
   conclusionFor,
   gradeVerdict,
@@ -220,6 +220,7 @@ export async function reconcile(
       pr,
       config,
       anthropic: params.anthropic,
+      botLogin: params.botLogin,
       log,
       beforePublish: approveBeforeVerdict,
     });
@@ -340,12 +341,13 @@ async function readLive(
 
 async function gradeHead(
   octokit: Octokit,
-  { owner, repo, pr, config, anthropic, log, beforePublish }: {
+  { owner, repo, pr, config, anthropic, botLogin, log, beforePublish }: {
     owner: string;
     repo: string;
     pr: PullRequest;
     config: WardenConfig;
     anthropic: () => Anthropic;
+    botLogin: string;
     log: Logger;
     // Runs for an eligible verdict, while the claim is still in progress.
     beforePublish: (verdict: Verdict) => Promise<void>;
@@ -360,6 +362,8 @@ async function gradeHead(
     output: { title: "Grading", summary: "Grading this commit." },
   });
 
+  let grade: Grade;
+  let verdict: Verdict;
   try {
     const files = await changedFiles(octokit, {
       owner,
@@ -371,12 +375,12 @@ async function gradeHead(
     // The model sees the whole diff or none of it.
     const assessment =
       signals.ungradeable === null ? await assess(anthropic(), files, log) : null;
-    const grade = buildGrade(
+    grade = buildGrade(
       signals,
       assessment,
       pr.labels.map((label) => label.name),
     );
-    const verdict = gradeVerdict(grade);
+    verdict = gradeVerdict(grade);
     if (verdict.eligible) await beforePublish(verdict);
     await octokit.rest.checks.update({
       owner,
@@ -386,7 +390,6 @@ async function gradeHead(
       conclusion: conclusionFor(verdict),
       output: checkOutput(grade, verdict),
     });
-    return verdict;
   } catch (error) {
     // Release the claim so the commit does not sit "in progress". Neutral,
     // never failure: a required check must not block a manual merge.
@@ -402,6 +405,51 @@ async function gradeHead(
       },
     });
     throw error;
+  }
+
+  // The verdict is published; the comment only reports it. A failed
+  // comment is logged and changes nothing else.
+  try {
+    await upsertComment(octokit, {
+      owner,
+      repo,
+      issue_number: pr.number,
+      botLogin,
+      body: commentBody(grade, verdict, pr.head.sha),
+    });
+  } catch (error) {
+    log.warn(`${owner}/${repo}#${pr.number}: grade comment failed — ${errorMessage(error)}`);
+  }
+  return verdict;
+}
+
+// One grade comment per pull request: edit the app's own, else create it.
+// Only a comment this app wrote counts, so anyone can quote the marker.
+async function upsertComment(
+  octokit: Octokit,
+  { owner, repo, issue_number, botLogin, body }: {
+    owner: string;
+    repo: string;
+    issue_number: number;
+    botLogin: string;
+    body: string;
+  },
+): Promise<void> {
+  const comments = await octokit.paginate(octokit.rest.issues.listComments, {
+    owner,
+    repo,
+    issue_number,
+    per_page: 100,
+  });
+  const own = comments.find(
+    (comment) =>
+      comment.user?.login === botLogin && (comment.body ?? "").includes(COMMENT_MARKER),
+  );
+  if (own) {
+    if (own.body === body) return;
+    await octokit.rest.issues.updateComment({ owner, repo, comment_id: own.id, body });
+  } else {
+    await octokit.rest.issues.createComment({ owner, repo, issue_number, body });
   }
 }
 

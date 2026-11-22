@@ -1,5 +1,6 @@
-// Pure: the check run's title and markdown body. The table is built from
-// validated enums only. Free text from the model and from file paths is
+// Pure: the check run's title and summary, and the sticky pull request
+// comment that carries the grade. The table is built from validated enums
+// only. Free text from the model and from file paths is
 // flattened by plainText before it is rendered.
 
 import type { Grade } from "./grade.js";
@@ -7,6 +8,9 @@ import type { Verdict } from "./policy.js";
 import type { Door, Level } from "./signals.js";
 
 export const CHECK_NAME = "merge-warden";
+// Marks the app's one grade comment on a pull request, so each grade
+// edits it instead of adding another.
+export const COMMENT_MARKER = "<!-- merge-warden: grade -->";
 
 export interface CheckOutput {
   title: string;
@@ -49,6 +53,33 @@ export function plainText(text: string, max = 300): string {
 }
 
 export function checkOutput(grade: Grade, verdict: Verdict): CheckOutput {
+  return {
+    title: verdict.eligible
+      ? "Eligible for auto-merge"
+      : `Needs a person: ${plainText(verdict.reason, 100)}`,
+    summary: [
+      `**Why:** ${plainText(verdict.reason, 200)}`,
+      "",
+      "The grade and findings are in the merge-warden comment on the pull request.",
+    ].join("\n"),
+  };
+}
+
+export function commentBody(grade: Grade, verdict: Verdict, sha: string): string {
+  const heading = verdict.eligible
+    ? "### ✅ merge-warden: eligible for auto-merge"
+    : "### ⚠️ merge-warden: needs a person";
+  return [
+    COMMENT_MARKER,
+    heading,
+    "",
+    ...report(grade, verdict),
+    "",
+    `<sub>Graded commit ${sha.slice(0, 7)}. A new commit is graded again and this comment updates.</sub>`,
+  ].join("\n");
+}
+
+function report(grade: Grade, verdict: Verdict): string[] {
   const assessment = grade.assessment;
   const axis = (level: Level | undefined) => (level ? LEVEL_LABEL[level] : "—");
   const reason = plainText(verdict.reason, 200);
@@ -98,12 +129,7 @@ export function checkOutput(grade: Grade, verdict: Verdict): CheckOutput {
     }
   }
 
-  return {
-    title: verdict.eligible
-      ? "Eligible for auto-merge"
-      : `Needs a person: ${plainText(verdict.reason, 100)}`,
-    summary: lines.join("\n"),
-  };
+  return lines;
 }
 
 function bullets(items: string[]): string[] {

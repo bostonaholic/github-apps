@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Posts the grade table, reasons, and findings as one comment on the pull
+  request, edited on each new grade, instead of in the check run. The
+  check run keeps the verdict and the reason.
+
 ### Added
 
 - Grades each pull request that targets the default branch from
