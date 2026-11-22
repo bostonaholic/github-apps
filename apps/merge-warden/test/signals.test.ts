@@ -131,6 +131,23 @@ describe("readSignals: gradeable", () => {
     expect(result.ungradeable).toBe("no text diff for logo.png");
   });
 
+  // GitHub reports a binary file with zero changed lines and no patch,
+  // the same numbers as a pure rename. Only the status tells them apart.
+  it.each(["added", "modified", "removed"])(
+    "rejects a binary file that was %s, which has zero changes and no patch",
+    (status) => {
+      const result = signals([file("assets/icon.png", { status, changes: 0, patch: undefined })]);
+      expect(result.ungradeable).toBe("no text diff for assets/icon.png");
+    },
+  );
+
+  it("rejects a renamed file whose content also changed without a patch", () => {
+    const result = signals([
+      file("b.bin", { status: "renamed", previous_filename: "a.bin", changes: 3, patch: undefined }),
+    ]);
+    expect(result.ungradeable).toBe("no text diff for b.bin");
+  });
+
   it("accepts a pure rename, which has no changes and no patch", () => {
     const result = signals([
       file("b.ts", { status: "renamed", previous_filename: "a.ts", changes: 0, patch: undefined }),

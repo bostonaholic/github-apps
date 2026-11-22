@@ -139,7 +139,13 @@ function whyUngradeable(files: ChangedFile[], expectedFiles: number): string | n
   if (files.length !== expectedFiles) {
     return `file list is incomplete (${files.length} of ${expectedFiles})`;
   }
-  const opaque = files.find((file) => file.changes > 0 && file.patch === undefined);
+  // Only a pure rename may lack a patch. A binary file also reports zero
+  // changed lines, so the line count cannot tell the two apart; the
+  // status can. An empty added file is rejected with them: fail closed.
+  const opaque = files.find(
+    (file) =>
+      file.patch === undefined && !(file.status === "renamed" && file.changes === 0),
+  );
   if (opaque) return `no text diff for ${opaque.filename}`;
   const diffChars = files.reduce((sum, file) => sum + (file.patch?.length ?? 0), 0);
   if (diffChars > MAX_DIFF_CHARS) return "diff exceeds the size budget";
