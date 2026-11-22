@@ -66,9 +66,13 @@ All of these must hold:
 5. No check is failing, and at least one check run from another app has
    passed. A repo with no CI is never auto-merged.
 
-The check run concludes `success` when conditions 1–3 hold for the graded
-commit, and `neutral` otherwise. It never concludes `failure`, so making
+A pull request that fails condition 3 is out of scope: it is not graded
+and gets no check run. For every other pull request the check run
+concludes `success` when conditions 1 and 2 hold for the graded commit,
+and `neutral` otherwise. It never concludes `failure`, so making
 `merge-warden` a required check does not block a manual merge.
+Conditions 4 and 5 are read again on every event, so they can stop a
+merge after the check has concluded `success`.
 
 ### How it merges
 
