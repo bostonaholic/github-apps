@@ -7,9 +7,10 @@ argument-hint: "[description of the new app]"
 # Create a new GitHub App from the template
 
 Scaffolds one new app directory from this skill's bundled
-`resources/template/`. The
-copy and token fill are mechanical; `app.yml`, `README.md`, `AGENTS.md`,
-the `src/` design, and the icon drawing take judgment, driven by the
+`resources/template/`, plus the app's `e2e-<app>` skill from
+`resources/e2e-skill/`. The copy and token fill are mechanical;
+`app.yml`, `README.md`, `AGENTS.md`, the `src/` design, the e2e
+scenarios, and the icon drawing take judgment, driven by the
 description. One argument:
 
 - **description** — what the new app should do, in the user's words.
@@ -17,14 +18,14 @@ description. One argument:
   guess.
 
 Scope ends at a verified, ready-to-commit scaffold. Registration,
-hosting, and e2e come later (Step 9).
+hosting, and implementing `e2e.sh` come later (Step 9).
 
 ## Hard constraints — read first
 
-- Never modify `resources/template/` or another app's directory during
-  a scaffold; every write lands under the new `apps/<app>/` or the shared
-  registration files (root `README.md` and `.github/dependabot.yml`, both
-  Step 7).
+- Never modify `resources/` or another app's directory or skill during
+  a scaffold; every write lands under the new `apps/<app>/`, the new
+  `.claude/skills/e2e-<app>/`, or the shared registration files (root
+  `README.md` and `.github/dependabot.yml`, both Step 7).
 - Never register, deploy, install, or repoint webhooks — out of scope.
 - Icons (Step 5) need `rsvg-convert` (Homebrew `librsvg`) and `sips`;
   either missing → stop at Step 5 and say so. The scaffold is not
@@ -41,8 +42,9 @@ Derive a kebab-case app name from the description. Rules:
   leading/trailing/double hyphen
 - **at most 21 characters** — the registered name `<app>-bostonaholic`
   must fit GitHub's 34-character app-name limit (`-bostonaholic` is 13)
-- `test -d apps/<app>` at the repo root must fail; an existing directory of
-  that name → stop and tell the user
+- `test -d apps/<app>` and `test -d .claude/skills/e2e-<app>` at the repo
+  root must both fail; an existing directory of either name → stop and
+  tell the user
 
 Also derive the description phrase: a lowercase verb phrase completing
 "a GitHub App that …" — no trailing period, no `"` or `\` (it lands
@@ -67,12 +69,21 @@ The `test` line guards against a skipped TEMPLATE.md deletion and a
 copy that dereferenced the `CLAUDE.md`/`GEMINI.md` symlinks or dropped
 `e2e.sh`'s exec bit.
 
+Then the e2e skill:
+
+```bash
+mkdir .claude/skills/e2e-<app>
+cp .claude/skills/create-github-app/resources/e2e-skill/SKILL.md \
+  .claude/skills/e2e-<app>/SKILL.md
+```
+
 ## Step 3 — mechanical fill
 
 ```bash
-APP='<app>' DESC='<phrase>' find apps/<app> -type f -exec perl -pi -e \
+APP='<app>' DESC='<phrase>' find apps/<app> .claude/skills/e2e-<app> \
+  -type f -exec perl -pi -e \
   's/__APP_NAME__/$ENV{APP}/g; s/__APP_DESCRIPTION__/$ENV{DESC}/g' {} +
-grep -rn '__APP_' apps/<app>/   # gate: must print nothing
+grep -rn '__APP_' apps/<app>/ .claude/skills/e2e-<app>/   # gate: must print nothing
 ```
 
 perl `-pi` sidesteps the BSD/GNU `sed -i` split; passing the values via
@@ -83,8 +94,10 @@ continuing.
 
 ## Step 4 — judgment fill
 
-Clear every `TODO(scaffold)` marker; `grep -rn 'TODO(scaffold)' apps/<app>/`
-must end up empty. From the description:
+Clear every `TODO(scaffold)` marker;
+`grep -rn 'TODO(scaffold)' apps/<app>/ .claude/skills/e2e-<app>/` must
+end up empty, except the one in `apps/<app>/e2e.sh` (the stub stays
+until Step 9's follow-up implements it). From the description:
 
 - **`app.yml`** — the minimum viable `default_events` and
   `default_permissions`, one justifying comment per permission (style:
@@ -99,6 +112,11 @@ must end up empty. From the description:
   list must mirror `app.yml` exactly.
 - **`AGENTS.md`** — a bullet per src module and the app-specific
   behavioral invariants.
+- **`.claude/skills/e2e-<app>/SKILL.md`** — the planned scenario table
+  (it is the spec `e2e.sh` is later written to), any sandbox fixtures,
+  and per-scenario failure bullets naming the `src/` module at fault.
+  Models: the existing `e2e-*` skills. Keep the **Status** paragraph —
+  `e2e.sh` is still a stub.
 
 ## Step 5 — icons
 
@@ -216,8 +234,8 @@ All green before proceeding (see Hard constraints).
 ## Step 8 — propose the commit
 
 `feat(<app>): scaffold`, covering `apps/<app>/` (including the generated
-`package-lock.json` and the four icon files), the root README row, and
-the `.github/dependabot.yml` entry. Propose it; don't commit without
+`package-lock.json` and the four icon files), `.claude/skills/e2e-<app>/`,
+the root README row, and the `.github/dependabot.yml` entry. Propose it; don't commit without
 approval.
 
 ## Step 9 — report follow-ups
@@ -231,9 +249,8 @@ remains (don't attempt these):
   `install-github-app`'s SKILL.md, not under the repo's top-level `apps/`
   — per that skill's "Adding a new app" section.
 - Vercel project + DNS — `apps/<app>/README.md`, "Deploy".
-- Real e2e — `e2e.sh`, a sandbox repo, and an `e2e-<app>` skill
-  (models: the existing apps). Set the sandbox repo's watch status to
-  **Ignore** (repo page → Watch → Ignore): e2e churn — PRs, comments,
-  and any deliberately failing workflow runs — otherwise emails
-  whoever triggers it, and GitHub has no per-repo Actions notification
-  setting.
+- Real e2e — implement `apps/<app>/e2e.sh` to the scenario table in
+  `.claude/skills/e2e-<app>/SKILL.md` (models: the existing apps), do
+  that skill's one-time sandbox setup (including watch status
+  **Ignore**), then delete its **Status** paragraph and correct any row
+  the implementation changed.
