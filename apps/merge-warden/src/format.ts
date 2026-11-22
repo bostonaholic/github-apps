@@ -58,6 +58,12 @@ export function checkOutput(grade: Grade, verdict: Verdict): CheckOutput {
     `**Why:** ${reason}`,
   ];
 
+  // The verdict names one reason. A one-way door outranks "not graded",
+  // so say separately why the axes and the confidence are blank.
+  if (grade.ungraded !== null) {
+    lines.push("", `**Not graded:** ${plainText(grade.ungraded, 200)}`);
+  }
+
   if (grade.doorReasons.length > 0) {
     lines.push("", "**One-way door because:**", ...bullets(grade.doorReasons));
   }

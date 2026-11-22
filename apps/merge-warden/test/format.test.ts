@@ -89,6 +89,37 @@ describe("checkOutput", () => {
     expect(summary).not.toContain("**Findings**");
   });
 
+  it("says why there is no assessment, even when the verdict names another reason", () => {
+    // A one-way door outranks "not graded" in the verdict, so without this
+    // line the dashes in the table would have no explanation.
+    const { summary } = checkOutput(
+      grade({
+        door: "one-way",
+        doorReasons: ["security and access: .env.example"],
+        risk: "high",
+        confidence: 0,
+        assessment: null,
+        ungraded: "no text diff for assets/icon.png",
+      }),
+      { eligible: false, reason: "one-way door (security and access: .env.example)" },
+    );
+    expect(summary).toContain("**Why:** one-way door (security and access: .env.example)");
+    expect(summary).toContain("**Not graded:** no text diff for assets/icon.png");
+  });
+
+  it("has no not-graded line when the diff was assessed", () => {
+    expect(checkOutput(grade(), BLOCKED).summary).not.toContain("**Not graded:**");
+  });
+
+  it("flattens the not-graded reason, which can hold a file path", () => {
+    const { summary } = checkOutput(
+      grade({ assessment: null, ungraded: "no text diff for a|b/[x](https://evil.example).png" }),
+      BLOCKED,
+    );
+    expect(summary).toContain("**Not graded:** no text diff for a b/x.png");
+    expect(summary).not.toContain("evil.example");
+  });
+
   it("lists door and floor reasons", () => {
     const { summary } = checkOutput(
       grade({
