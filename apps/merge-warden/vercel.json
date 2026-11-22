@@ -5,7 +5,7 @@
   "ignoreCommand": "git diff --quiet ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- . || exit 1",
   "functions": {
     "api/**/*.js": {
-      "maxDuration": 30
+      "maxDuration": 300
     }
   }
 }

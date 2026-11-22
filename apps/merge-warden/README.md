@@ -186,9 +186,18 @@ builds for commits that don't touch this app.
   wraps the compiled app (`lib/index.js`) in Probot's `createNodeMiddleware`;
   `vercel.json`'s `buildCommand` runs `tsc` before functions are bundled.
 - **Env vars** (Vercel project settings): `APP_ID`, `WEBHOOK_SECRET`,
-  `PRIVATE_KEY`, and `NODEJS_HELPERS=0` (stops Vercel consuming the request
-  body — signature verification needs the raw body). Never set
-  `WEBHOOK_PROXY_URL` in production.
+  `PRIVATE_KEY`, `ANTHROPIC_API_KEY`, and `NODEJS_HELPERS=0` (stops Vercel
+  consuming the request body — signature verification needs the raw
+  body). Never set `WEBHOOK_PROXY_URL` in production. Without
+  `ANTHROPIC_API_KEY` every pull request gets `neutral` "could not grade".
+- **Function duration**: `vercel.json` sets `maxDuration` to 300 seconds.
+  A grade can take longer than the 9 seconds after which the webhook
+  middleware answers GitHub, so `src/index.ts` passes the work to
+  `waitUntil` to keep the invocation alive until it settles. This needs
+  Fluid compute enabled on the Vercel project.
+- **Model**: `claude-sonnet-5-5`, set in `src/assess.ts`. One call per
+  graded commit, 100-second timeout, one retry. A refusal, a truncated
+  response, or an API error means no grade, and a person merges.
 - **DNS**: `merge-warden` CNAME on bostonaholic.dev (Namecheap) →
   `cname.vercel-dns.com`.
 - **Health probes** (no code): `GET /` serves the static landing page

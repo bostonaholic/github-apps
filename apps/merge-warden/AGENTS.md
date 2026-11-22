@@ -32,6 +32,9 @@ Strict layering, pure core with I/O at the edges:
   test is its first branch); thresholds are constants here
 - `src/format.ts` — pure: check-run title and markdown; `plainText`
   flattens every untrusted string before it is rendered
+- `src/assess.ts` — I/O: the one model call (`client.messages.parse` with
+  a zod schema); returns `null` on refusal, truncation, schema failure,
+  or any SDK error
 - `src/gate.ts` — I/O: `reconcile()`, the single orchestration entry
   point; the app's own check run on the head commit is the only stored
   state

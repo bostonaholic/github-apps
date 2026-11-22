@@ -1,3 +1,5 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { waitUntil } from "@vercel/functions";
 import type { Context, Probot } from "probot";
 import {
   NO_AUTO_MERGE_LABEL,
@@ -39,6 +41,11 @@ function identityOf(app: Probot): () => Promise<Identity> {
   };
 }
 
+// One client per process, built on first use. The timeout and single
+// retry keep the worst case inside the function's maxDuration.
+let client: Anthropic | undefined;
+const anthropic = () => (client ??= new Anthropic({ timeout: 100_000, maxRetries: 1 }));
+
 export default (app: Probot) => {
   const identity = identityOf(app);
 
@@ -50,17 +57,25 @@ export default (app: Probot) => {
     pull_number: number,
     mode: Mode,
   ): Promise<void> {
-    const { owner, repo } = context.repo();
-    const raw = await context.config(CONFIG_FILE);
-    await reconcile(context.octokit, {
-      owner,
-      repo,
-      pull_number,
-      mode,
-      config: normalizeConfig(raw as Record<string, unknown> | null, owner),
-      ...(await identity()),
-      log: context.log,
-    });
+    const work = (async () => {
+      const { owner, repo } = context.repo();
+      const raw = await context.config(CONFIG_FILE);
+      await reconcile(context.octokit, {
+        owner,
+        repo,
+        pull_number,
+        mode,
+        config: normalizeConfig(raw as Record<string, unknown> | null, owner),
+        ...(await identity()),
+        anthropic,
+        log: context.log,
+      });
+    })();
+    // A grade can outlast the 9 s after which the webhook middleware
+    // answers GitHub. waitUntil keeps the Vercel invocation alive until
+    // the work settles; it does nothing outside Vercel.
+    waitUntil(work.catch(() => {}));
+    await work;
   }
 
   // A new head commit, or a PR entering review: grade it.

@@ -7,10 +7,12 @@
 // for auto-merge, `neutral` means a person must merge. Only this app can
 // write its check runs, so a pull request cannot edit its own verdict.
 
+import type Anthropic from "@anthropic-ai/sdk";
 import type { Context } from "probot";
+import { assess } from "./assess.js";
 import type { WardenConfig } from "./config.js";
 import { CHECK_NAME, checkOutput } from "./format.js";
-import { buildGrade, type Assessment } from "./grade.js";
+import { buildGrade } from "./grade.js";
 import { gradeVerdict, scopeBlock, type Verdict } from "./policy.js";
 import { readSignals, type ChangedFile } from "./signals.js";
 
@@ -40,6 +42,9 @@ export interface ReconcileParams {
   // This app's id. Own check runs are found by it, never by name alone:
   // any app with checks:write can create a run called "merge-warden".
   appId: number;
+  // Called only when a diff is about to be graded, so a missing API key
+  // fails that grade and nothing else.
+  anthropic: () => Anthropic;
   log?: Logger;
 }
 
@@ -120,17 +125,26 @@ export async function reconcile(
   // goes ahead either way; its run is newer, so its verdict wins.
   if (mode === "grade" && stored.state !== "none") return;
 
-  const verdict = await gradeHead(octokit, { owner, repo, pr, config });
+  const verdict = await gradeHead(octokit, {
+    owner,
+    repo,
+    pr,
+    config,
+    anthropic: params.anthropic,
+    log,
+  });
   log.info(`${tag}: graded ${pr.head.sha} — ${verdict.reason}`);
 }
 
 async function gradeHead(
   octokit: Octokit,
-  { owner, repo, pr, config }: {
+  { owner, repo, pr, config, anthropic, log }: {
     owner: string;
     repo: string;
     pr: PullRequest;
     config: WardenConfig;
+    anthropic: () => Anthropic;
+    log: Logger;
   },
 ): Promise<Verdict> {
   const { data: claim } = await octokit.rest.checks.create({
@@ -150,7 +164,9 @@ async function gradeHead(
       head: pr.head.sha,
     });
     const signals = readSignals(files, config, pr.changed_files);
-    const assessment: Assessment | null = null;
+    // The model sees the whole diff or none of it.
+    const assessment =
+      signals.ungradeable === null ? await assess(anthropic(), files, log) : null;
     const grade = buildGrade(
       signals,
       assessment,
