@@ -26,6 +26,20 @@ updates:
           - "patch"
 
   - package-ecosystem: "npm"
+    directory: "/apps/merge-warden"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(merge-warden)"
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
     directory: "/apps/task-list-completed"
     schedule:
       interval: "weekly"

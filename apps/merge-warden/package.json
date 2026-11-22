@@ -1,0 +1,27 @@
+{
+  "name": "merge-warden",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GitHub App that grades pull requests on risk and auto-merges the low-risk two-way-door ones",
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "^20.18.1 || >=22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "probot run ./lib/index.js",
+    "test": "vitest run",
+    "test:e2e": "bash e2e.sh",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "probot": "^14.3.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "smee-client": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
