@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BUILD_FOOTER } from "../src/build.js";
 import {
   buildStatus,
   buildStickyBody,
@@ -83,6 +84,12 @@ describe("buildStickyBody", () => {
     const body = buildStickyBody([], 4);
     expect(body).toContain(STICKY_MARKER);
     expect(body).toContain("all 4 tasks complete");
+  });
+
+  it("ends both bodies with the build footer", () => {
+    const item = { text: "x", url: "https://pr#c1", source: "comment" } as const;
+    expect(buildStickyBody([], 1).endsWith(`\n\n${BUILD_FOOTER}`)).toBe(true);
+    expect(buildStickyBody([item], 1).endsWith(`\n\n${BUILD_FOOTER}`)).toBe(true);
   });
 
   it("does not render outstanding items as parseable checkboxes", () => {

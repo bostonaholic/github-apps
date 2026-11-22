@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- The grade comment ends with a footer naming the app version and the
+  7-character commit SHA of the deployed build, e.g.
+  `merge-warden v0.1.0 · cb6ab00`.
+
 ### Changed
 
 - Grades with `claude-haiku-5-5` instead of `claude-sonnet-5-5`. The
