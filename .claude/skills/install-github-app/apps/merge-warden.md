@@ -16,8 +16,12 @@
 
 ## Configure
 
-**Config file — usually none.** See `apps/merge-warden/README.md` for the
-repo config file and its keys; only add one for non-default behavior.
+**Config file — required to merge.** Add `.github/merge-warden.yml` on
+the default branch with `ci_checks` naming the repo's CI check (the
+check run's name as GitHub shows it, or a commit-status context). With
+no `ci_checks` the app grades and approves but never merges directly,
+and branches without a required `merge-warden` check use only the
+direct path. Other keys: `apps/merge-warden/README.md`.
 
 **Required check (optional).** The app writes a `merge-warden` check run
 on the head commit. Make it required only if the user wants merges blocked on it.

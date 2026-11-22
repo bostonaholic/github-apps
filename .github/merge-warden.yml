@@ -1,0 +1,5 @@
+# merge-warden config. Keys: apps/merge-warden/README.md.
+# `CI` is the aggregate job in .github/workflows/ci.yml; without a name
+# here merge-warden never merges directly.
+ci_checks:
+  - CI
