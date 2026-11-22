@@ -13,6 +13,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Context } from "probot";
 import { assess } from "./assess.js";
+import { armAutoMerge, disarmAutoMerge, requiresOwnCheck } from "./automerge.js";
 import { checksRollup } from "./checks.js";
 import type { WardenConfig } from "./config.js";
 import { CHECK_NAME, checkOutput } from "./format.js";
@@ -56,6 +57,9 @@ export interface ReconcileParams {
   // This app's id. Own check runs are found by it, never by name alone:
   // any app with checks:write can create a run called "merge-warden".
   appId: number;
+  // This app's login as GitHub reports it on `auto_merge.enabled_by`. The
+  // app disarms only auto-merge it armed itself.
+  botLogin: string;
   // Called only when a diff is about to be graded, so a missing API key
   // fails that grade and nothing else.
   anthropic: () => Anthropic;
@@ -128,8 +132,17 @@ export async function reconcile(
   let pr = await getPull();
   if (pr.state !== "open") return;
 
+  // Disarm native auto-merge if this app armed it. A person's own
+  // auto-merge is theirs and is left alone.
+  const disarm = async (current: PullRequest) => {
+    if (current.auto_merge?.enabled_by?.login !== params.botLogin) return;
+    await disarmAutoMerge(octokit, current.node_id);
+    log.info(`${tag}: disarmed auto-merge`);
+  };
+
   const scope = outOfScope(pr, config);
   if (scope) {
+    await disarm(pr);
     log.info(`${tag}: out of scope — ${scope}`);
     return;
   }
@@ -154,6 +167,15 @@ export async function reconcile(
   // A fresh claim or an existing verdict stops a plain grade. A regrade
   // goes ahead either way; its run is newer, so its verdict wins.
   const mustGrade = mode === "regrade" || (mode === "grade" && stored.state === "none");
+
+  // Disarm before anything slow and before any verdict is published.
+  // GitHub keeps auto-merge armed across pushes, and a neutral check
+  // satisfies a required check, so an armed pull request that is being
+  // graded, or is no longer eligible, must be disarmed first. If this
+  // throws, reconcile stops here: no model call, no check run.
+  if (mustGrade || !mergeDecision(conclusion, live.facts).eligible) {
+    await disarm(pr);
+  }
 
   if (mustGrade) {
     const verdict = await gradeHead(octokit, {
@@ -185,6 +207,9 @@ export async function reconcile(
 
   const rollup = await checksRollup(octokit, { owner, repo, ref: head, appId });
   if (rollup === "red") {
+    // Native auto-merge waits only for required checks. Disarm so a
+    // failing optional check stops the merge on both paths.
+    await disarm(pr);
     log.warn(`${tag}: checks failing; not merging`);
     return;
   }
@@ -199,6 +224,29 @@ export async function reconcile(
       event: "APPROVE",
       body: APPROVAL_BODY,
     });
+  }
+
+  // Already armed, by this app on an earlier event or by a person.
+  if (pr.auto_merge) return;
+
+  const ownCheckRequired = await requiresOwnCheck(octokit, {
+    owner,
+    repo,
+    branch: pr.base.ref,
+    checkName: CHECK_NAME,
+    appId,
+  });
+  if (ownCheckRequired) {
+    const outcome = await armAutoMerge(octokit, {
+      pullRequestId: pr.node_id,
+      mergeMethod: config.merge_method,
+      head,
+    });
+    if (outcome.armed) {
+      log.info(`${tag}: armed auto-merge for ${head}`);
+      return;
+    }
+    log.info(`${tag}: auto-merge not armed (${outcome.why}); merging directly`);
   }
 
   if (rollup === "pending") {

@@ -19,6 +19,7 @@ type ReconcileEvent =
 
 interface Identity {
   appId: number;
+  botLogin: string;
 }
 
 // Who this app is, asked of GitHub once per process. A failed lookup is
@@ -31,7 +32,7 @@ function identityOf(app: Probot): () => Promise<Identity> {
       .then((octokit) => octokit.rest.apps.getAuthenticated())
       .then(({ data }) => {
         if (!data) throw new Error("GitHub returned no app for these credentials");
-        return { appId: data.id };
+        return { appId: data.id, botLogin: `${data.slug}[bot]` };
       })
       .catch((error: unknown) => {
         cached = undefined;

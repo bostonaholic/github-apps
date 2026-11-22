@@ -40,6 +40,9 @@ Strict layering, pure core with I/O at the edges:
 - `src/assess.ts` — I/O: the one model call (`client.messages.parse` with
   a zod schema); returns `null` on refusal, truncation, schema failure,
   or any SDK error
+- `src/automerge.ts` — I/O: arm and disarm GitHub's native auto-merge
+  (GraphQL), and `requiresOwnCheck`, the test for whether arming is safe
+  on a branch
 - `src/gate.ts` — I/O: `reconcile()`, the single orchestration entry
   point; the app's own check run on the head commit is the only stored
   state
@@ -73,6 +76,15 @@ Behavioral invariants to preserve:
 - Labels, draft state, and reviews are read live on every event. A stored
   `success` never overrides them.
 - Nothing the model wrote goes into a review body.
+- Disarm comes first. `reconcile()` disarms app-armed auto-merge before
+  it grades and before it publishes any verdict, because GitHub keeps
+  auto-merge armed across pushes and a `neutral` check satisfies a
+  required check. If the disarm call throws, nothing else runs.
+- Auto-merge is armed only where branch protection requires the
+  `merge-warden` check pinned to this app's id. Everywhere else the app
+  merges directly.
+- The app disarms only auto-merge it armed. A person's auto-merge is
+  never touched.
 - The model never sees a partial diff. A diff that cannot be sent whole
   is not graded.
 - `app.yml` is the source of truth for the app's permissions and webhook

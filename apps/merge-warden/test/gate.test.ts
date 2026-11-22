@@ -4,7 +4,14 @@ import { reconcile, type Mode } from "../src/gate.js";
 import type { Assessment } from "../src/grade.js";
 
 const APP_ID = 4242;
+const BOT = "merge-warden-bostonaholic[bot]";
 const CI_APP = { id: 15368 };
+
+// `auto_merge` on a pull request, by who armed it.
+const ARMED_BY_APP = { enabled_by: { login: BOT }, merge_method: "squash" };
+const ARMED_BY_PERSON = { enabled_by: { login: "owner" }, merge_method: "squash" };
+// Branch protection that requires this app's own check.
+const OWN_CHECK_REQUIRED = [{ context: "merge-warden", app_id: APP_ID }];
 
 interface OwnRun {
   id: number;
@@ -51,6 +58,12 @@ interface FakeOptions {
   ciRuns?: CiRun[];
   statuses?: { context: string; state: string }[];
   mergeError?: number;
+  // Required status checks on the base branch. Default: none, so the
+  // direct path runs.
+  requiredChecks?: { context: string; app_id: number | null }[];
+  // GitHub refuses to arm auto-merge with this message.
+  armError?: string;
+  disarmError?: Error;
 }
 
 const LOW_RISK: Assessment = {
@@ -104,6 +117,8 @@ function fakeOctokit(options: FakeOptions = {}) {
     rollups: 0,
     approvals: [] as Record<string, unknown>[],
     merges: [] as Record<string, unknown>[],
+    arms: [] as Record<string, unknown>[],
+    disarms: [] as Record<string, unknown>[],
   };
 
   const files = options.files ?? DOCS_CHANGE;
@@ -128,6 +143,21 @@ function fakeOctokit(options: FakeOptions = {}) {
   };
 
   const octokit = {
+    graphql: async (query: string, variables: Record<string, unknown>) => {
+      if (query.includes("disablePullRequestAutoMerge")) {
+        calls.order.push("disarm");
+        calls.disarms.push(variables);
+        if (options.disarmError) throw options.disarmError;
+        return {};
+      }
+      if (query.includes("enablePullRequestAutoMerge")) {
+        calls.order.push("arm");
+        calls.arms.push(variables);
+        if (options.armError) throw new Error(options.armError);
+        return {};
+      }
+      throw new Error(`unexpected graphql: ${query}`);
+    },
     rest: {
       pulls: {
         get: async () => {
@@ -170,6 +200,14 @@ function fakeOctokit(options: FakeOptions = {}) {
           if (options.compareError) throw options.compareError;
           return { data: { files } };
         },
+        getBranch: async () => ({
+          data: {
+            protection: {
+              enabled: true,
+              required_status_checks: { contexts: [], checks: options.requiredChecks ?? [] },
+            },
+          },
+        }),
         getCombinedStatusForRef: async () => {
           const statuses = options.statuses ?? [];
           return { data: { total_count: statuses.length, statuses } };
@@ -228,6 +266,7 @@ function start(options: FakeOptions = {}, overrides: Overrides = {}) {
     mode: overrides.mode ?? "grade",
     config: overrides.config ?? CONFIG,
     appId: APP_ID,
+    botLogin: BOT,
     anthropic: anthropic as never,
   });
   return { done, calls };
@@ -665,24 +704,222 @@ describe("reconcile: one-way doors never merge", () => {
     { user: { login: "merge-warden[bot]" }, state: "APPROVED", commit_id: "head1" },
   ];
 
-  it("for every door source, check state, mode, and prior approval", async () => {
+  // What GitHub would answer if the app asked to arm auto-merge. It must
+  // never be asked.
+  const ARM_ANSWERS = [
+    undefined,
+    "Pull request Pull request is in clean status",
+    "Pull request Pull request is in unstable status",
+    "Pull request Auto merge is not allowed for this repository",
+  ];
+
+  it("for every door source, check state, mode, prior approval, armed state, and arm answer", async () => {
     let cases = 0;
     for (const [source, optionsFor] of Object.entries(DOOR_SOURCES)) {
       for (const [checks, ciRuns] of Object.entries(CHECKS)) {
         for (const mode of MODES) {
           for (const reviews of [[], APPROVED]) {
-            const calls = await run({ ...optionsFor(mode), ciRuns, reviews }, { mode });
-            const where = `${source} / checks ${checks} / ${mode} / approved ${reviews.length > 0}`;
-            expect(calls.approvals, where).toHaveLength(0);
-            expect(calls.merges, where).toHaveLength(0);
-            for (const update of calls.checkUpdates) {
-              expect((update as { conclusion: string }).conclusion, where).toBe("neutral");
+            for (const armed of [false, true]) {
+              for (const armError of ARM_ANSWERS) {
+                const options = optionsFor(mode);
+                const calls = await run(
+                  {
+                    ...options,
+                    pr: { ...options.pr, auto_merge: armed ? ARMED_BY_APP : null },
+                    ciRuns,
+                    reviews,
+                    requiredChecks: OWN_CHECK_REQUIRED,
+                    armError,
+                  },
+                  { mode },
+                );
+                const where = [
+                  source,
+                  `checks ${checks}`,
+                  mode,
+                  `approved ${reviews.length > 0}`,
+                  `armed ${armed}`,
+                  `arm answer ${armError ?? "ok"}`,
+                ].join(" / ");
+                expect(calls.approvals, where).toHaveLength(0);
+                expect(calls.merges, where).toHaveLength(0);
+                expect(calls.arms, where).toHaveLength(0);
+                // Armed by this app on an earlier commit or before the
+                // label: disarmed exactly once.
+                expect(calls.disarms, where).toHaveLength(armed ? 1 : 0);
+                for (const update of calls.checkUpdates) {
+                  expect((update as { conclusion: string }).conclusion, where).toBe("neutral");
+                }
+                cases += 1;
+              }
             }
-            cases += 1;
           }
         }
       }
     }
-    expect(cases).toBe(96);
+    expect(cases).toBe(768);
+  });
+});
+
+describe("reconcile: native auto-merge", () => {
+  it("arms auto-merge for the graded commit where its own check is required", async () => {
+    const calls = await run({ requiredChecks: OWN_CHECK_REQUIRED });
+    expect(calls.order).toEqual(["claim", "model", "complete", "approve", "arm"]);
+    expect(calls.arms).toEqual([
+      { id: "PR_1", mergeMethod: "SQUASH", expectedHeadOid: "head1" },
+    ]);
+    expect(calls.merges).toHaveLength(0);
+  });
+
+  it("arms while checks are still running and leaves the merge to GitHub", async () => {
+    const calls = await run({ requiredChecks: OWN_CHECK_REQUIRED, ciRuns: [CI_RUNNING] });
+    expect(calls.arms).toHaveLength(1);
+    expect(calls.merges).toHaveLength(0);
+  });
+
+  it.each([
+    ["no check is required", []],
+    ["the name is required from any source", [{ context: "merge-warden", app_id: null }]],
+    ["the name is pinned to another app", [{ context: "merge-warden", app_id: 15368 }]],
+  ])("merges directly, never arming, when %s", async (_name, requiredChecks) => {
+    const calls = await run({ requiredChecks });
+    expect(calls.arms).toHaveLength(0);
+    expect(calls.merges).toHaveLength(1);
+  });
+
+  it("counts an already-enabled answer as armed and does not merge", async () => {
+    const calls = await run({
+      requiredChecks: OWN_CHECK_REQUIRED,
+      armError: "Pull request Auto merge is already enabled",
+    });
+    expect(calls.arms).toHaveLength(1);
+    expect(calls.merges).toHaveLength(0);
+  });
+
+  it.each([
+    "Pull request Pull request is in clean status",
+    "Pull request Pull request is in unstable status",
+    "Pull request Auto merge is not allowed for this repository",
+    "something GitHub has never said before",
+  ])("merges directly on a green rollup when GitHub refuses to arm: %s", async (armError) => {
+    const calls = await run({ requiredChecks: OWN_CHECK_REQUIRED, armError });
+    expect(calls.order).toEqual(["claim", "model", "complete", "approve", "arm", "merge"]);
+    expect(calls.merges[0].sha).toBe("head1");
+  });
+
+  it("waits, without merging, when GitHub refuses to arm and checks are running", async () => {
+    const calls = await run({
+      requiredChecks: OWN_CHECK_REQUIRED,
+      armError: "Pull request Pull request is in unstable status",
+      ciRuns: [CI_RUNNING],
+    });
+    expect(calls.arms).toHaveLength(1);
+    expect(calls.merges).toHaveLength(0);
+  });
+
+  it.each([
+    ["this app", ARMED_BY_APP],
+    ["a person", ARMED_BY_PERSON],
+  ])("leaves an eligible pull request alone when %s already armed it", async (_name, auto_merge) => {
+    const calls = await run(
+      { pr: { auto_merge }, ownRuns: [verdict("success")], requiredChecks: OWN_CHECK_REQUIRED },
+      { mode: "act" },
+    );
+    expect(calls.order).toEqual(["approve"]);
+  });
+});
+
+describe("reconcile: disarming native auto-merge", () => {
+  const armed = { auto_merge: ARMED_BY_APP };
+
+  it("disarms a new commit before claiming, grading, or publishing anything", async () => {
+    // Armed on an earlier commit; a push arrives; this head has no verdict.
+    const calls = await run({ pr: armed, files: MIGRATION });
+    expect(calls.order).toEqual(["disarm", "claim", "model", "complete"]);
+    expect(calls.disarms).toEqual([{ id: "PR_1" }]);
+  });
+
+  it("disarms, grades, and re-arms on a regrade that stays eligible", async () => {
+    const calls = await run(
+      {
+        pr: armed,
+        prAfterGrade: { auto_merge: null },
+        ownRuns: [verdict("success")],
+        requiredChecks: OWN_CHECK_REQUIRED,
+      },
+      { mode: "regrade" },
+    );
+    expect(calls.order).toEqual(["disarm", "claim", "model", "complete", "approve", "arm"]);
+  });
+
+  it.each([
+    ["the one-way-door label is added", { labels: [{ name: "one-way-door" }] }],
+    ["the no-auto-merge label is added", { labels: [{ name: "no-auto-merge" }] }],
+    ["it is converted to draft", { draft: true }],
+  ])("disarms and does nothing else when %s", async (_name, pr) => {
+    const calls = await run(
+      { pr: { ...armed, ...pr }, ownRuns: [verdict("success")] },
+      { mode: "act" },
+    );
+    expect(calls.order).toEqual(["disarm"]);
+  });
+
+  it("disarms when changes are requested", async () => {
+    const calls = await run(
+      {
+        pr: armed,
+        ownRuns: [verdict("success")],
+        reviews: [{ user: { login: "reviewer" }, state: "CHANGES_REQUESTED", commit_id: "head1" }],
+      },
+      { mode: "act" },
+    );
+    expect(calls.order).toEqual(["disarm"]);
+  });
+
+  it("disarms when the head commit's verdict is neutral", async () => {
+    const calls = await run({ pr: armed, ownRuns: [verdict("neutral")] }, { mode: "act" });
+    expect(calls.order).toEqual(["disarm"]);
+  });
+
+  it("disarms when a check is failing, without approving", async () => {
+    const calls = await run(
+      { pr: armed, ownRuns: [verdict("success")], ciRuns: [CI_PASSED, CI_FAILED] },
+      { mode: "act" },
+    );
+    expect(calls.order).toEqual(["disarm"]);
+  });
+
+  it("disarms a pull request that left scope, and writes no check", async () => {
+    const calls = await run({
+      pr: {
+        ...armed,
+        base: {
+          sha: "base1",
+          ref: "release",
+          repo: { full_name: "owner/r", default_branch: "main" },
+        },
+      },
+    });
+    expect(calls.order).toEqual(["disarm"]);
+  });
+
+  it.each([
+    ["the one-way-door label", { labels: [{ name: "one-way-door" }] }],
+    ["a draft", { draft: true }],
+  ])("leaves a person's own auto-merge armed with %s", async (_name, pr) => {
+    const calls = await run(
+      { pr: { auto_merge: ARMED_BY_PERSON, ...pr }, ownRuns: [verdict("success")] },
+      { mode: "act" },
+    );
+    expect(calls.disarms).toHaveLength(0);
+  });
+
+  it("stops before the model call and writes no check when disarming fails", async () => {
+    const boom = new Error("graphql unavailable");
+    const { done, calls } = start({ pr: armed, disarmError: boom });
+    await expect(done).rejects.toBe(boom);
+    expect(calls.order).toEqual(["disarm"]);
+    expect(calls.checkCreates).toHaveLength(0);
+    expect(calls.assessments).toHaveLength(0);
   });
 });

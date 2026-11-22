@@ -24,3 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   graded commit. The `one-way-door` and `no-auto-merge` labels, draft
   state, and requested changes are read on every event and stop the
   merge even after a `success` verdict. One-way doors are never merged.
+- Enables GitHub's native auto-merge, pinned to the graded commit, on
+  branches whose protection requires the `merge-warden` check from this
+  app. Other branches keep the direct merge. The app disables auto-merge
+  it enabled as soon as a pull request stops being eligible, and before
+  it grades a new commit.

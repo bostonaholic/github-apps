@@ -72,16 +72,32 @@ commit, and `neutral` otherwise. It never concludes `failure`, so making
 
 ### How it merges
 
-- If `merge-warden` is a required status check on the base branch, the
-  app enables GitHub's native auto-merge and GitHub merges when the
-  branch's requirements pass.
-- Otherwise the app merges directly, pinned to the graded commit, once
-  its own rollup of check runs and commit statuses is green.
+- **Native auto-merge.** If branch protection on the base branch requires
+  the `merge-warden` status check and pins it to this app, the app
+  enables GitHub's auto-merge for the graded commit. GitHub merges when
+  the branch's requirements pass.
+- **Direct merge.** Everywhere else, and whenever GitHub refuses to
+  enable auto-merge, the app merges directly, pinned to the graded
+  commit, once its own rollup of check runs and commit statuses is green.
 
-The app turns native auto-merge back off (only when it was the one that
-enabled it) as soon as a pull request stops being eligible: a new commit,
+Why the condition: GitHub keeps auto-merge enabled across pushes by
+anyone with write access. Without a required `merge-warden` check, a new
+commit could merge before the app has graded it. With one, GitHub waits
+for the app's verdict on the new commit, and the app turns auto-merge off
+before it publishes a verdict that is not `success`. A requirement that
+accepts the check name from any source does not count, and neither does
+one set through a ruleset; those branches use the direct path.
+
+The app turns native auto-merge back off, only when it was the one that
+enabled it, as soon as a pull request stops being eligible: a new commit,
 a `one-way-door` or `no-auto-merge` label, changes requested, a failing
-check, or conversion to draft.
+check, conversion to draft, or a retarget to another base.
+
+To use native auto-merge on a repo:
+
+1. Repo settings → General → enable **Allow auto-merge**.
+2. Branch protection on the default branch → **Require status checks to
+   pass** → add `merge-warden` and select this app as its source.
 
 ### Paths that are high risk but reversible
 
