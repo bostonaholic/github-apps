@@ -42,6 +42,9 @@ const IGNORED_CHECK_NAMES = new Set(["Cursor Security Agent: Security Reviewer"]
 // same idea for checks that ran without a pass/fail verdict.
 const PASSING_CONCLUSIONS = new Set(["success", "neutral", "skipped"]);
 
+// The app that owns every GitHub Actions check suite.
+const ACTIONS_APP_SLUG = "github-actions";
+
 function isIgnoredCheck(name: string | null | undefined): boolean {
   return name != null && IGNORED_CHECK_NAMES.has(name);
 }
@@ -218,7 +221,23 @@ async function checksRollup(
     return "pending";
   }
 
-  return pending ? "pending" : "green";
+  if (pending) return "pending";
+
+  // Actions creates the check runs of `needs:` jobs only after the jobs
+  // they depend on finish, so every run so far can pass while more are
+  // still to come. Its check suite stays unfinished until the workflow run
+  // ends. Other apps' suites are not read: an app that never reports
+  // leaves a queued suite on every commit.
+  const suites = await octokit.paginate(octokit.rest.checks.listSuitesForRef, {
+    owner,
+    repo,
+    ref,
+    per_page: 100,
+  });
+  const actionsRunning = suites.some(
+    (suite) => suite.app?.slug === ACTIONS_APP_SLUG && suite.status !== "completed",
+  );
+  return actionsRunning ? "pending" : "green";
 }
 
 async function hasWorkflows(

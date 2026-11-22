@@ -6,6 +6,7 @@ interface FakeOptions {
   pr?: Record<string, unknown>;
   reviews?: Record<string, unknown>[];
   checkRuns?: { name?: string; status: string; conclusion: string | null }[];
+  checkSuites?: { app: { slug: string } | null; status: string | null }[];
   combinedStatus?: {
     state: string;
     total_count: number;
@@ -59,7 +60,7 @@ function fakeOctokit(options: FakeOptions = {}) {
           return {};
         },
       },
-      checks: { listForRef: "listForRef" },
+      checks: { listForRef: "listForRef", listSuitesForRef: "listSuitesForRef" },
       repos: {
         // GitHub defaults this endpoint to 30 statuses per page. Slice so a
         // test can put a decisive status past the first page.
@@ -92,6 +93,7 @@ function fakeOctokit(options: FakeOptions = {}) {
       calls.paginated.push(route as string);
       if (route === "listReviews") return options.reviews ?? [];
       if (route === "listForRef") return options.checkRuns ?? [];
+      if (route === "listSuitesForRef") return options.checkSuites ?? [];
       throw new Error(`unexpected paginate route: ${String(route)}`);
     },
   };
@@ -255,6 +257,38 @@ describe("reconcile", () => {
         total_count: 1,
         statuses: [{ context: "task-list-completed", state: "success" }],
       },
+    });
+    expect(calls.merges).toHaveLength(1);
+  });
+
+  it("waits while the Actions check suite is unfinished, even when every check run so far passed", async () => {
+    // Actions creates the check runs of `needs:` jobs only after the jobs
+    // they depend on finish.
+    const calls = await run({
+      workflows: true,
+      checkRuns: [{ name: "changes", status: "completed", conclusion: "success" }],
+      checkSuites: [{ app: { slug: "github-actions" }, status: "in_progress" }],
+    });
+    expect(calls.merges).toHaveLength(0);
+    expect(calls.approvals).toHaveLength(1);
+  });
+
+  it("merges once the Actions check suite is completed", async () => {
+    const calls = await run({
+      workflows: true,
+      checkRuns: [{ name: "changes", status: "completed", conclusion: "success" }],
+      checkSuites: [{ app: { slug: "github-actions" }, status: "completed" }],
+    });
+    expect(calls.merges).toHaveLength(1);
+  });
+
+  it("does not wait on another app's check suite that never reports", async () => {
+    const calls = await run({
+      checkRuns: [{ name: "ci", status: "completed", conclusion: "success" }],
+      checkSuites: [
+        { app: { slug: "github-actions" }, status: "completed" },
+        { app: { slug: "cursor" }, status: "queued" },
+      ],
     });
     expect(calls.merges).toHaveLength(1);
   });

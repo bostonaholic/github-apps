@@ -43,7 +43,9 @@ requested changes.
    must be green. Skipped and neutral checks count as green. `Cursor
    Security Agent: Security Reviewer` is ignored in every state, because it
    does not report on Dependabot PRs. Anything still running waits for the
-   next check event.
+   next check event. A GitHub Actions workflow run counts as still running
+   until its check suite completes, because Actions creates the check runs
+   of `needs:` jobs only after the jobs they depend on finish.
 3. It merges directly with `pulls.merge`, pinned to that head SHA, using
    the configured method (squash by default). GitHub auto-merge is not
    used: it waits for every ruleset-required check, and the Cursor check

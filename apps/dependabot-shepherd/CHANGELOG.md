@@ -24,6 +24,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   on green statuses alone. A repo whose workflows never run on pull
   requests gets no check run, so the app no longer merges there on
   statuses alone.
+- A Dependabot PR is no longer merged partway through a GitHub Actions
+  workflow run. Actions creates the check runs of `needs:` jobs only
+  after the jobs they depend on finish. In the seconds between a first
+  job passing and the next job's check run appearing, every check run on
+  the head was green, and a commit status arriving then (for example
+  from Vercel) made the app merge. The app now waits until every
+  `github-actions` check suite on the head is completed. Check suites of
+  other apps are not read.
 - Multi-package Dependabot PRs are parsed and can merge. Titles like
   `Bump @vitest/mocker and vitest` and `Bump the X group ...` have no
   single from/to version, so the app logged "could not parse the update"
