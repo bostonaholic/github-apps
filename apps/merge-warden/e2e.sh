@@ -223,6 +223,9 @@ add_label() {
 }
 
 log "== preflight"
+# The run approves and merges PRs into the target's main: refuse any repo
+# that is not a sandbox.
+[[ "$REPO" == *-sandbox ]] || fail "E2E_REPO=$REPO is not a sandbox repo (name must end in -sandbox)"
 gh api "repos/$REPO" --jq .full_name >/dev/null || fail "cannot reach $REPO with gh"
 for f in .github/workflows/e2e-ci.yml .github/merge-warden.yml; do
   gh api "repos/$REPO/contents/$f" --jq .name >/dev/null 2>&1 \

@@ -112,7 +112,7 @@ cd apps/merge-warden && npm run test:e2e               # local server mode
 The script prints one `== step` header per row of the table and ends with
 `E2E PASS`. Waits poll for up to 240 s (`E2E_POLL_TIMEOUT`) because
 Actions runner queueing dominates; negative assertions wait 20 s
-(`E2E_GRACE`). The sandbox repo can be overridden with `E2E_REPO`. Expect
+(`E2E_GRACE`). The sandbox repo can be overridden with `E2E_REPO`; the script refuses a name that does not end in `-sandbox`, because it merges into the target's main. Expect
 a full run to take 5–10 minutes and about seven model calls.
 
 Cleanup closes the still-open PRs and deletes their branches (including
