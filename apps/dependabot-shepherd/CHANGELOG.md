@@ -15,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- A failed check run no longer blocks the merge after a newer run of the
+  same check succeeds. A workflow that runs more than once on one commit
+  leaves every run in place; the app now reads only the newest run of
+  each check.
+
 - A Dependabot PR no longer collects several approvals while its checks
   run (five in seven seconds on
   <https://github.com/bostonaholic/github-apps/pull/53>). The app approved

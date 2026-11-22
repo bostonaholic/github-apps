@@ -42,6 +42,30 @@ const IGNORED_CHECK_NAMES = new Set(["Cursor Security Agent: Security Reviewer"]
 // same idea for checks that ran without a pass/fail verdict.
 const PASSING_CONCLUSIONS = new Set(["success", "neutral", "skipped"]);
 
+interface CheckRun {
+  id: number | bigint;
+  name: string;
+  app?: { id: number } | null;
+}
+
+// One commit can carry several runs of the same check: a workflow that
+// triggers on opened, labeled and unlabeled runs three times, each in its
+// own check suite, and listForRef's `filter: latest` keeps them all. Only
+// the newest run of each check says where it stands now. Newest is the
+// highest id: GitHub assigns ids in creation order and every run has one,
+// while started_at can tie and a re-run's queued run may lack it. Checks
+// are keyed by app and name, so another app's run with the same name never
+// hides a failure.
+function latestRuns<Run extends CheckRun>(runs: readonly Run[]): Run[] {
+  const newest = new Map<string, Run>();
+  for (const run of runs) {
+    const key = `${run.app?.id ?? ""}/${run.name}`;
+    const seen = newest.get(key);
+    if (!seen || run.id > seen.id) newest.set(key, run);
+  }
+  return [...newest.values()];
+}
+
 function isIgnoredCheck(name: string | null | undefined): boolean {
   return name != null && IGNORED_CHECK_NAMES.has(name);
 }
@@ -198,7 +222,7 @@ async function checksRollup(
 
   let pending = false;
   let sawCheck = false;
-  for (const run of runs) {
+  for (const run of latestRuns(runs)) {
     if (isIgnoredCheck(run.name)) continue;
     sawCheck = true;
     if (run.status !== "completed") {
