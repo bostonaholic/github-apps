@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_MODEL, assess, modelFromEnv, renderDiff } from "../src/assess.js";
 import type { Assessment } from "../src/grade.js";
 import type { ChangedFile } from "../src/signals.js";
@@ -89,6 +89,16 @@ describe("modelFromEnv", () => {
 });
 
 describe("assess", () => {
+  // Clean env per test, so a developer's ANTHROPIC_MODEL cannot leak in.
+  beforeEach(() => vi.stubEnv("ANTHROPIC_MODEL", ""));
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("sends ANTHROPIC_MODEL when it is set", async () => {
+    vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
+    const { requests } = await run(() => ({ stop_reason: "end_turn", parsed_output: VALID }));
+    expect(requests[0].model).toBe("claude-sonnet-5-5");
+  });
+
   it("returns the parsed assessment", async () => {
     const { result } = await run(() => ({ stop_reason: "end_turn", parsed_output: VALID }));
     expect(result).toEqual(VALID);
@@ -103,7 +113,7 @@ describe("assess", () => {
       messages: { role: string; content: string }[];
       output_config: { format: { type: string } };
     };
-    expect(request.model).toBe(modelFromEnv());
+    expect(request.model).toBe(DEFAULT_MODEL);
     expect(request.messages).toEqual([{ role: "user", content: renderDiff(FILES) }]);
     expect(request.system).toContain("one-way");
     expect(request.output_config.format.type).toBe("json_schema");
