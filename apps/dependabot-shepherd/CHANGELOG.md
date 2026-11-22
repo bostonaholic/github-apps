@@ -15,6 +15,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- A Dependabot PR no longer collects several approvals while its checks
+  run (five in seven seconds on
+  <https://github.com/bostonaholic/github-apps/pull/53>). The app approved
+  on every run, and the webhooks that follow a PR opening each started a
+  run before any approval existed. The app now approves only on the run
+  that finds every check green, immediately before it merges. The approval
+  appears when checks finish, not when the PR opens, and a PR with failing
+  checks gets no approval. Runs that overlap at the moment the head turns
+  green can still each approve, which on a repo without CI is the moment
+  the PR opens.
 - A Dependabot PR is no longer merged before GitHub Actions starts. On a
   repo with workflow files, a green commit status from another app (for
   example `task-list-completed`, posted within a second of the PR opening)

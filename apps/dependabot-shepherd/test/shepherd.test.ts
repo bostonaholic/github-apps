@@ -37,6 +37,9 @@ function fakeOctokit(options: FakeOptions = {}) {
     ...options.pr,
   };
 
+  // Stateful like GitHub: an approval is visible to every later listing.
+  const reviews = [...(options.reviews ?? [])];
+
   const octokit = {
     rest: {
       pulls: {
@@ -47,6 +50,11 @@ function fakeOctokit(options: FakeOptions = {}) {
         listReviews: "listReviews",
         createReview: async (params: Record<string, unknown>) => {
           calls.approvals.push(params);
+          reviews.push({
+            user: { login: "shepherd[bot]" },
+            state: "APPROVED",
+            commit_id: pr.head.sha,
+          });
           return {};
         },
         merge: async (params: Record<string, unknown>) => {
@@ -90,7 +98,7 @@ function fakeOctokit(options: FakeOptions = {}) {
     },
     paginate: async (route: unknown) => {
       calls.paginated.push(route as string);
-      if (route === "listReviews") return options.reviews ?? [];
+      if (route === "listReviews") return [...reviews];
       if (route === "listForRef") return options.checkRuns ?? [];
       throw new Error(`unexpected paginate route: ${String(route)}`);
     },
@@ -131,6 +139,33 @@ describe("reconcile", () => {
     });
     expect(calls.approvals).toHaveLength(0);
     expect(calls.merges).toHaveLength(1);
+  });
+
+  // PR #53 in bostonaholic/github-apps got 5 approvals in 7 seconds: the
+  // webhooks that follow a PR opening each started a run, and every run
+  // listed reviews before any approval existed.
+  it("does not approve when runs overlap while checks are pending", async () => {
+    const { octokit, calls } = fakeOctokit({ workflows: true });
+    await Promise.all([
+      reconcile(octokit as never, params),
+      reconcile(octokit as never, params),
+    ]);
+    expect(calls.approvals).toHaveLength(0);
+    expect(calls.merges).toHaveLength(0);
+  });
+
+  it("does not approve while checks are still running", async () => {
+    const calls = await run({
+      checkRuns: [{ name: "ci", status: "in_progress", conclusion: null }],
+    });
+    expect(calls.approvals).toHaveLength(0);
+  });
+
+  it("does not approve over red checks", async () => {
+    const calls = await run({
+      checkRuns: [{ name: "ci", status: "completed", conclusion: "failure" }],
+    });
+    expect(calls.approvals).toHaveLength(0);
   });
 
   it("re-approves after the head moved", async () => {
@@ -232,7 +267,7 @@ describe("reconcile", () => {
   it("waits when checks have not appeared yet but the repo has workflows", async () => {
     const calls = await run({ workflows: true });
     expect(calls.merges).toHaveLength(0);
-    expect(calls.approvals).toHaveLength(1);
+    expect(calls.approvals).toHaveLength(0);
   });
 
   it("waits when only a commit status has reported and the repo has workflows", async () => {
@@ -245,7 +280,7 @@ describe("reconcile", () => {
       },
     });
     expect(calls.merges).toHaveLength(0);
-    expect(calls.approvals).toHaveLength(1);
+    expect(calls.approvals).toHaveLength(0);
   });
 
   it("merges on a green commit status alone when the repo has no workflows", async () => {

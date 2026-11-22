@@ -38,12 +38,13 @@ requested changes.
 
 ## The merge
 
-1. The app approves the PR (once per head commit — a rebase re-approves).
-2. It reads check runs and commit statuses on the head. Every one of them
-   must be green. Skipped and neutral checks count as green. `Cursor
+1. The app reads check runs and commit statuses on the head. Every one of
+   them must be green. Skipped and neutral checks count as green. `Cursor
    Security Agent: Security Reviewer` is ignored in every state, because it
    does not report on Dependabot PRs. Anything still running waits for the
    next check event.
+2. It approves the PR, unless it already approved that head commit. A PR
+   with running or failing checks gets no approval.
 3. It merges directly with `pulls.merge`, pinned to that head SHA, using
    the configured method (squash by default). GitHub auto-merge is not
    used: it waits for every ruleset-required check, and the Cursor check
