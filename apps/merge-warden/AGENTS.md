@@ -73,6 +73,11 @@ Behavioral invariants to preserve:
 - The approval and the merge are pinned to the graded commit
   (`commit_id`, `sha`). After a grade, `reconcile()` re-reads the pull
   request and stops if the head, the state, or the scope changed.
+- A grading run approves before it publishes the verdict. Publishing
+  completes the app's check suite, which starts an `act` run; until
+  then every other run sees an in-progress claim and does not act, so
+  the approval exists before any of them lists reviews. Two `act` runs
+  that overlap can still each approve: the claim is the app's only lock.
 - Labels, draft state, and reviews are read live on every event. A stored
   `success` never overrides them.
 - Nothing the model wrote goes into a review body.

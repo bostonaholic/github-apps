@@ -177,6 +177,42 @@ export async function reconcile(
     await disarm(pr);
   }
 
+  const approve = () =>
+    octokit.rest.pulls.createReview({
+      owner,
+      repo,
+      pull_number,
+      // Without this GitHub approves whatever the head is at call time.
+      commit_id: head,
+      event: "APPROVE",
+      body: APPROVAL_BODY,
+    });
+
+  const rollupOfHead = () =>
+    checksRollup(octokit, { owner, repo, ref: head, appId, ciChecks: config.ci_checks });
+
+  // Approve while the claim is still in progress. Publishing the verdict
+  // completes the app's check suite, and GitHub answers with
+  // `check_suite.completed`: a second run that would list reviews before
+  // this run's approval exists and approve too. Until the verdict is
+  // published, every other run sees a commit that is still being graded
+  // and does not act. Same conditions as the approval below. A failure
+  // here is not final: that approval tries again.
+  const approveBeforeVerdict = async (verdict: Verdict) => {
+    try {
+      const current = await getPull();
+      if (current.state !== "open" || current.head.sha !== head) return;
+      if (outOfScope(current, config)) return;
+      const fresh = await readLive(octokit, { owner, repo, pr: current });
+      if (fresh.approvedAtHead) return;
+      if (!mergeDecision(conclusionFor(verdict), fresh.facts).eligible) return;
+      if ((await rollupOfHead()) === "red") return;
+      await approve();
+    } catch (error) {
+      log.warn(`${tag}: approval before the verdict failed — ${errorMessage(error)}`);
+    }
+  };
+
   if (mustGrade) {
     const verdict = await gradeHead(octokit, {
       owner,
@@ -185,6 +221,7 @@ export async function reconcile(
       config,
       anthropic: params.anthropic,
       log,
+      beforePublish: approveBeforeVerdict,
     });
     log.info(`${tag}: graded ${head} — ${verdict.reason}`);
     conclusion = conclusionFor(verdict);
@@ -205,13 +242,7 @@ export async function reconcile(
     return;
   }
 
-  const rollup = await checksRollup(octokit, {
-    owner,
-    repo,
-    ref: head,
-    appId,
-    ciChecks: config.ci_checks,
-  });
+  const rollup = await rollupOfHead();
   if (rollup === "red") {
     // Native auto-merge waits only for required checks. Disarm so a
     // failing optional check stops the merge on both paths.
@@ -220,17 +251,7 @@ export async function reconcile(
     return;
   }
 
-  if (!live.approvedAtHead) {
-    await octokit.rest.pulls.createReview({
-      owner,
-      repo,
-      pull_number,
-      // Without this GitHub approves whatever the head is at call time.
-      commit_id: head,
-      event: "APPROVE",
-      body: APPROVAL_BODY,
-    });
-  }
+  if (!live.approvedAtHead) await approve();
 
   // Already armed, by this app on an earlier event or by a person.
   if (pr.auto_merge) return;
@@ -319,13 +340,15 @@ async function readLive(
 
 async function gradeHead(
   octokit: Octokit,
-  { owner, repo, pr, config, anthropic, log }: {
+  { owner, repo, pr, config, anthropic, log, beforePublish }: {
     owner: string;
     repo: string;
     pr: PullRequest;
     config: WardenConfig;
     anthropic: () => Anthropic;
     log: Logger;
+    // Runs for an eligible verdict, while the claim is still in progress.
+    beforePublish: (verdict: Verdict) => Promise<void>;
   },
 ): Promise<Verdict> {
   const { data: claim } = await octokit.rest.checks.create({
@@ -354,6 +377,7 @@ async function gradeHead(
       pr.labels.map((label) => label.name),
     );
     const verdict = gradeVerdict(grade);
+    if (verdict.eligible) await beforePublish(verdict);
     await octokit.rest.checks.update({
       owner,
       repo,
