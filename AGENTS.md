@@ -128,3 +128,5 @@ the app's directory name so apps never collide:
   `git tag --list '<app>-v*' --sort=-version:refname`. An app's release
   baseline (e.g. for changelog work) is its most recent `<app>-v*` tag,
   never another app's tags.
+- **Cutting a release:** the `release-github-app` skill
+  (`.claude/skills/release-github-app/`) scripts every step above.
