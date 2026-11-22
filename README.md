@@ -1,6 +1,12 @@
 # github-apps
 
-A monorepo of [GitHub Apps](https://docs.github.com/en/apps).
+A monorepo of [GitHub Apps](https://docs.github.com/en/apps) for agentic
+software engineering.
+
+Coding agents open pull requests faster than a person can review and merge
+them. Each app here automates one step of the pull request workflow around
+that work: blocking a merge until the checks only a person can do are
+ticked off, or merging routine dependency updates with no human review.
 
 ## Apps
 

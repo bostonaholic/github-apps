@@ -12,8 +12,9 @@ It also maintains a single sticky comment on the PR listing what's still
 outstanding, with each item linked back to wherever it was written — no
 scrolling a long thread hunting for the one unchecked box.
 
-Typical use: things that must happen before merge, like running a migration
-or getting a sign-off.
+Typical use: things that must happen before merge, like running a migration,
+getting a sign-off, or the manual test-plan steps a coding agent leaves in
+the PR description for a person to verify.
 
 ## What counts as a task
 
