@@ -19,8 +19,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   low-risk two-way door at 90% confidence or more, and `neutral`
   otherwise. The pull request's title and description are not sent.
 - Approves and merges a pull request whose head commit has a `success`
-  verdict, once no check is failing and at least one check run from
-  another app has passed. The approval and the merge are pinned to the
+  verdict, once every check named in the repo's `ci_checks` has succeeded
+  and no other check is failing or running. A repo that names no
+  `ci_checks` is never merged directly. The approval and the merge are pinned to the
   graded commit. The `one-way-door` and `no-auto-merge` labels, draft
   state, and requested changes are read on every event and stop the
   merge even after a `success` verdict. One-way doors are never merged.

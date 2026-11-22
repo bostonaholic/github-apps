@@ -14,6 +14,8 @@ interface FakeRun {
 interface FakeOptions {
   checkRuns?: FakeRun[];
   statuses?: { context: string; state: string }[];
+  // The repo's `ci_checks`. Default: one check named "test".
+  ciChecks?: string[];
 }
 
 function fakeOctokit(options: FakeOptions = {}) {
@@ -56,6 +58,7 @@ async function rollup(options: FakeOptions = {}) {
     repo: "r",
     ref: "head1",
     appId: APP_ID,
+    ciChecks: options.ciChecks ?? ["test"],
   });
   return { result, calls };
 }
@@ -63,8 +66,70 @@ async function rollup(options: FakeOptions = {}) {
 const passed: FakeRun = { name: "test", status: "completed", conclusion: "success", app: CI_APP };
 
 describe("checksRollup", () => {
-  it("is green when another app's check run succeeded and nothing else reported", async () => {
+  it("is green when the named CI check succeeded and nothing else reported", async () => {
     expect((await rollup({ checkRuns: [passed] })).result).toBe("green");
+  });
+
+  describe("named CI checks", () => {
+    const lint: FakeRun = { name: "lint", status: "completed", conclusion: "success", app: CI_APP };
+    const deployBot: FakeRun = {
+      name: "Vercel Preview Comments",
+      status: "completed",
+      conclusion: "success",
+      app: { id: 8329 },
+    };
+
+    it("is never green with no names configured, even when everything succeeded", async () => {
+      const { result } = await rollup({ checkRuns: [passed, lint, deployBot], ciChecks: [] });
+      expect(result).toBe("pending");
+    });
+
+    it("does not count a deploy bot's success as CI", async () => {
+      expect((await rollup({ checkRuns: [deployBot] })).result).toBe("pending");
+      expect(
+        (
+          await rollup({
+            checkRuns: [deployBot],
+            statuses: [{ context: "Vercel – my-app", state: "success" }],
+          })
+        ).result,
+      ).toBe("pending");
+    });
+
+    it("needs every named check, not just one", async () => {
+      const ciChecks = ["test", "lint"];
+      expect((await rollup({ checkRuns: [passed], ciChecks })).result).toBe("pending");
+      expect((await rollup({ checkRuns: [passed, lint], ciChecks })).result).toBe("green");
+    });
+
+    it("accepts a commit-status context as a named check", async () => {
+      const { result } = await rollup({
+        statuses: [{ context: "ci/legacy", state: "success" }],
+        ciChecks: ["ci/legacy"],
+      });
+      expect(result).toBe("green");
+    });
+
+    it("still turns red on a failing check that is not named", async () => {
+      const { result } = await rollup({
+        checkRuns: [passed, { ...deployBot, conclusion: "failure" }],
+      });
+      expect(result).toBe("red");
+    });
+
+    it("still waits on a running check that is not named", async () => {
+      const { result } = await rollup({
+        checkRuns: [passed, { ...deployBot, status: "in_progress", conclusion: null }],
+      });
+      expect(result).toBe("pending");
+    });
+
+    it("does not let a skipped or neutral run satisfy a name", async () => {
+      for (const conclusion of ["skipped", "neutral"]) {
+        const { result } = await rollup({ checkRuns: [{ ...passed, conclusion }] });
+        expect(result).toBe("pending");
+      }
+    });
   });
 
   it("reads every check run on the commit, not only its own", async () => {
@@ -125,13 +190,17 @@ describe("checksRollup", () => {
       expect(result).toBe("green");
     });
 
-    it("does not count as the successful run that green requires", async () => {
-      const { result } = await rollup({
-        checkRuns: [
-          { name: "merge-warden", status: "completed", conclusion: "success", app: { id: APP_ID } },
-        ],
-      });
-      expect(result).toBe("pending");
+    it("cannot satisfy a named check, even when the repo names it", async () => {
+      const own: FakeRun = {
+        name: "merge-warden",
+        status: "completed",
+        conclusion: "success",
+        app: { id: APP_ID },
+      };
+      expect((await rollup({ checkRuns: [own] })).result).toBe("pending");
+      expect((await rollup({ checkRuns: [own], ciChecks: ["merge-warden"] })).result).toBe(
+        "pending",
+      );
     });
 
     it("is matched by app id: another app's run with the same name still counts", async () => {
@@ -145,7 +214,7 @@ describe("checksRollup", () => {
   });
 
   describe("commit statuses", () => {
-    it("are not enough for green on their own", async () => {
+    it("are not enough for green when they are not a named check", async () => {
       const { result } = await rollup({
         statuses: [{ context: "task-list-completed", state: "success" }],
       });

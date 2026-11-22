@@ -12,6 +12,10 @@ export interface WardenConfig {
   // lists; it cannot remove a built-in entry.
   one_way_door_paths: string[];
   high_risk_paths: string[];
+  // Names of the check runs (or commit-status contexts) that are this
+  // repo's CI. All must succeed before the app merges directly. Empty:
+  // the app never merges directly.
+  ci_checks: string[];
 }
 
 // Forces the one-way-door verdict. No label reverses it.
@@ -39,6 +43,7 @@ export function normalizeConfig(
     merge_method: isMergeMethod(config.merge_method) ? config.merge_method : "squash",
     one_way_door_paths: stringList(config.one_way_door_paths),
     high_risk_paths: stringList(config.high_risk_paths),
+    ci_checks: stringList(config.ci_checks),
   };
 }
 

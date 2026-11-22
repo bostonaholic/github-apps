@@ -248,7 +248,8 @@ function fakeOctokit(options: FakeOptions = {}) {
   return { octokit, anthropic, calls };
 }
 
-const CONFIG = normalizeConfig(null, "owner");
+// A repo whose CI is one check run named "test" (CI_PASSED, CI_RUNNING, CI_FAILED).
+const CONFIG = normalizeConfig({ ci_checks: ["test"] }, "owner");
 
 interface Overrides {
   mode?: Mode;
@@ -567,6 +568,29 @@ describe("reconcile: approve and merge", () => {
 
   it("approves but never merges a repo with no CI", async () => {
     const calls = await run({ ciRuns: [] });
+    expect(calls.approvals).toHaveLength(1);
+    expect(calls.merges).toHaveLength(0);
+  });
+
+  it("approves but never merges when the repo names no ci_checks", async () => {
+    const calls = await run({}, { config: normalizeConfig(null, "owner") });
+    expect(conclusionOf(calls)).toBe("success");
+    expect(calls.approvals).toHaveLength(1);
+    expect(calls.merges).toHaveLength(0);
+  });
+
+  it("does not merge on a deploy bot's success alone", async () => {
+    const calls = await run({
+      ciRuns: [
+        {
+          name: "Vercel Preview Comments",
+          status: "completed",
+          conclusion: "success",
+          app: { id: 8329 },
+        },
+      ],
+      statuses: [{ context: "Vercel – my-app", state: "success" }],
+    });
     expect(calls.approvals).toHaveLength(1);
     expect(calls.merges).toHaveLength(0);
   });

@@ -33,8 +33,8 @@ Strict layering, pure core with I/O at the edges:
   (run on every event against fresh facts). The one-way-door test is the
   first branch of both; thresholds are constants here
 - `src/checks.ts` — I/O: `checksRollup` over check runs and commit
-  statuses; a copy of dependabot-shepherd's with three differences listed
-  in its header
+  statuses; green needs every check named in `ci_checks`. A copy of
+  dependabot-shepherd's with three differences listed in its header
 - `src/format.ts` — pure: check-run title and markdown; `plainText`
   flattens every untrusted string before it is rendered
 - `src/assess.ts` — I/O: the one model call (`client.messages.parse` with
@@ -76,6 +76,9 @@ Behavioral invariants to preserve:
 - Labels, draft state, and reviews are read live on every event. A stored
   `success` never overrides them.
 - Nothing the model wrote goes into a review body.
+- A successful check is not CI unless the repo names it in `ci_checks`.
+  With no names the app never merges directly. Deploy previews and status
+  bots report success on every commit.
 - Disarm comes first. `reconcile()` disarms app-armed auto-merge before
   it grades and before it publishes any verdict, because GitHub keeps
   auto-merge armed across pushes and a `neutral` check satisfies a

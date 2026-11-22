@@ -9,7 +9,18 @@ describe("normalizeConfig", () => {
       merge_method: "squash",
       one_way_door_paths: [],
       high_risk_paths: [],
+      ci_checks: [],
     });
+  });
+
+  it("reads ci_checks as a list of names, empty when absent or malformed", () => {
+    expect(normalizeConfig({ ci_checks: ["test", "lint"] }, "o").ci_checks).toEqual([
+      "test",
+      "lint",
+    ]);
+    expect(normalizeConfig({ ci_checks: "test" }, "o").ci_checks).toEqual(["test"]);
+    expect(normalizeConfig({ ci_checks: 3 }, "o").ci_checks).toEqual([]);
+    expect(normalizeConfig({}, "o").ci_checks).toEqual([]);
   });
 
   it("honors an explicit enabled: false", () => {

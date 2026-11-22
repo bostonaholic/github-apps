@@ -205,7 +205,13 @@ export async function reconcile(
     return;
   }
 
-  const rollup = await checksRollup(octokit, { owner, repo, ref: head, appId });
+  const rollup = await checksRollup(octokit, {
+    owner,
+    repo,
+    ref: head,
+    appId,
+    ciChecks: config.ci_checks,
+  });
   if (rollup === "red") {
     // Native auto-merge waits only for required checks. Disarm so a
     // failing optional check stops the merge on both paths.
@@ -251,7 +257,11 @@ export async function reconcile(
 
   if (rollup === "pending") {
     // A later check_suite/status event re-enters reconcile.
-    log.info(`${tag}: checks still running`);
+    log.info(
+      config.ci_checks.length === 0
+        ? `${tag}: no ci_checks configured; direct merge is off`
+        : `${tag}: waiting for ci_checks to succeed`,
+    );
     return;
   }
 

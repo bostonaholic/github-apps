@@ -63,8 +63,9 @@ All of these must hold:
    and the base is the default branch.
 4. The pull request is not a draft, has no changes requested, and does
    not carry the `no-auto-merge` label.
-5. No check is failing, and at least one check run from another app has
-   passed. A repo with no CI is never auto-merged.
+5. No check or commit status is failing or still running, and every
+   check named in `ci_checks` has succeeded. A repo that names no
+   `ci_checks` is never merged directly.
 
 A pull request that fails condition 3 is out of scope: it is not graded
 and gets no check run. For every other pull request the check run
@@ -82,7 +83,13 @@ merge after the check has concluded `success`.
   the branch's requirements pass.
 - **Direct merge.** Everywhere else, and whenever GitHub refuses to
   enable auto-merge, the app merges directly, pinned to the graded
-  commit, once its own rollup of check runs and commit statuses is green.
+  commit, once every check named in `ci_checks` has succeeded and no
+  other check or status is failing or running.
+
+`ci_checks` exists because a successful check does not mean tests ran.
+Deploy previews and status bots report success on every commit. Only the
+names you list count as CI. Use the check run's name as GitHub shows it
+(for Actions, the job name) or a commit-status context.
 
 Why the condition: GitHub keeps auto-merge enabled across pushes by
 anyone with write access. Without a required `merge-warden` check, a new
@@ -114,8 +121,8 @@ A diff over 400 changed lines or 20 files has a risk floor of medium.
 
 The app does not send a partial diff. A pull request gets `neutral` with
 "not gradeable" when a changed file has no text patch (binary, very
-large, submodule), when it changes 300 or more files, or when the diff
-exceeds the size budget.
+large, submodule, or an empty new file), when it changes 300 or more
+files, or when the diff exceeds the size budget.
 
 ## Configuration
 
@@ -127,6 +134,10 @@ enabled: true
 authors:
   - octocat
 merge_method: squash # squash | merge | rebase
+# The check runs or commit-status contexts that are this repo's CI. All
+# must succeed before a direct merge. Default: none, so no direct merge.
+ci_checks:
+  - test
 # Added to the built-in lists. A config cannot remove a built-in glob.
 one_way_door_paths:
   - "db/**"
