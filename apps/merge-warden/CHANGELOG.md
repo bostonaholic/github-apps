@@ -29,3 +29,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   app. Other branches keep the direct merge. The app disables auto-merge
   it enabled as soon as a pull request stops being eligible, and before
   it grades a new commit.
+- App icon (`assets/icon.svg`, `assets/icon.png`) and the favicons the
+  landing page links.
