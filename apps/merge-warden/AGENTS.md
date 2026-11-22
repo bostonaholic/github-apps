@@ -28,8 +28,13 @@ Strict layering, pure core with I/O at the edges:
 - `src/signals.ts` — pure: path globs and diff size → one-way-door
   reasons, risk floor, and whether the diff can be graded whole
 - `src/grade.ts` — pure: signals + model assessment + labels → `Grade`
-- `src/policy.ts` — pure: scope test and `gradeVerdict` (the one-way-door
-  test is its first branch); thresholds are constants here
+- `src/policy.ts` — pure: scope test, `gradeVerdict` (stored once per
+  commit as the check conclusion), and `liveBlock` / `mergeDecision`
+  (run on every event against fresh facts). The one-way-door test is the
+  first branch of both; thresholds are constants here
+- `src/checks.ts` — I/O: `checksRollup` over check runs and commit
+  statuses; a copy of dependabot-shepherd's with three differences listed
+  in its header
 - `src/format.ts` — pure: check-run title and markdown; `plainText`
   flattens every untrusted string before it is rendered
 - `src/assess.ts` — I/O: the one model call (`client.messages.parse` with
@@ -62,6 +67,12 @@ Behavioral invariants to preserve:
   `neutral` means a person merges, so a required `merge-warden` check
   cannot block a manual merge.
 - Own check runs are found by app id, never by name alone.
+- The approval and the merge are pinned to the graded commit
+  (`commit_id`, `sha`). After a grade, `reconcile()` re-reads the pull
+  request and stops if the head, the state, or the scope changed.
+- Labels, draft state, and reviews are read live on every event. A stored
+  `success` never overrides them.
+- Nothing the model wrote goes into a review body.
 - The model never sees a partial diff. A diff that cannot be sent whole
   is not graded.
 - `app.yml` is the source of truth for the app's permissions and webhook

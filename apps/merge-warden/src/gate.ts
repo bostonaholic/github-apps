@@ -6,14 +6,28 @@
 // Its conclusion is the verdict for that commit: `success` means eligible
 // for auto-merge, `neutral` means a person must merge. Only this app can
 // write its check runs, so a pull request cannot edit its own verdict.
+//
+// Everything else — labels, draft state, reviews, the head commit itself —
+// is read fresh on every event and never trusted from an earlier one.
 
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Context } from "probot";
 import { assess } from "./assess.js";
+import { checksRollup } from "./checks.js";
 import type { WardenConfig } from "./config.js";
 import { CHECK_NAME, checkOutput } from "./format.js";
 import { buildGrade } from "./grade.js";
-import { gradeVerdict, scopeBlock, type Verdict } from "./policy.js";
+import {
+  conclusionFor,
+  gradeVerdict,
+  hasChangesRequested,
+  isApprovedAtHead,
+  mergeDecision,
+  scopeBlock,
+  type LiveFacts,
+  type ReviewFacts,
+  type Verdict,
+} from "./policy.js";
 import { readSignals, type ChangedFile } from "./signals.js";
 
 type Octokit = Context["octokit"];
@@ -48,6 +62,10 @@ export interface ReconcileParams {
   log?: Logger;
 }
 
+// Fixed text. Nothing the model wrote goes into a review.
+const APPROVAL_BODY =
+  "Approved by merge-warden: low risk, two-way door. The grade is in the `merge-warden` check on this commit.";
+
 // An in-progress own check run is a claim: another invocation is grading
 // this commit. A claim older than this was abandoned (the function was
 // killed) and no longer counts.
@@ -81,20 +99,8 @@ function storedVerdict(runs: OwnRun[], now: number): StoredVerdict {
   return now - startedAt < CLAIM_TTL_MS ? { state: "grading" } : { state: "none" };
 }
 
-export async function reconcile(
-  octokit: Octokit,
-  params: ReconcileParams,
-): Promise<void> {
-  const { owner, repo, pull_number, config, mode } = params;
-  const log = params.log ?? NOOP_LOG;
-  const tag = `${owner}/${repo}#${pull_number}`;
-
-  if (!config.enabled) return;
-
-  const { data: pr } = await octokit.rest.pulls.get({ owner, repo, pull_number });
-  if (pr.state !== "open") return;
-
-  const outOfScope = scopeBlock(
+function outOfScope(pr: PullRequest, config: WardenConfig): string | null {
+  return scopeBlock(
     {
       authorLogin: pr.user?.login ?? null,
       headRepo: pr.head.repo?.full_name ?? null,
@@ -104,36 +110,153 @@ export async function reconcile(
     },
     config,
   );
-  if (outOfScope) {
-    log.info(`${tag}: out of scope — ${outOfScope}`);
+}
+
+export async function reconcile(
+  octokit: Octokit,
+  params: ReconcileParams,
+): Promise<void> {
+  const { owner, repo, pull_number, config, mode, appId } = params;
+  const log = params.log ?? NOOP_LOG;
+  const tag = `${owner}/${repo}#${pull_number}`;
+
+  if (!config.enabled) return;
+
+  const getPull = async () =>
+    (await octokit.rest.pulls.get({ owner, repo, pull_number })).data;
+
+  let pr = await getPull();
+  if (pr.state !== "open") return;
+
+  const scope = outOfScope(pr, config);
+  if (scope) {
+    log.info(`${tag}: out of scope — ${scope}`);
     return;
   }
 
+  // The commit every later step is pinned to. If the head moves, the
+  // approval, the merge, and the verdict all refuse the new commit.
+  const head = pr.head.sha;
+
+  let live = await readLive(octokit, { owner, repo, pr });
   const runs = await octokit.paginate(octokit.rest.checks.listForRef, {
     owner,
     repo,
-    ref: pr.head.sha,
+    ref: head,
     check_name: CHECK_NAME,
-    app_id: params.appId,
+    app_id: appId,
     filter: "all",
     per_page: 100,
   });
   const stored = storedVerdict(runs, Date.now());
+  let conclusion = stored.state === "done" ? stored.conclusion : null;
 
-  if (mode === "act") return;
   // A fresh claim or an existing verdict stops a plain grade. A regrade
   // goes ahead either way; its run is newer, so its verdict wins.
-  if (mode === "grade" && stored.state !== "none") return;
+  const mustGrade = mode === "regrade" || (mode === "grade" && stored.state === "none");
 
-  const verdict = await gradeHead(octokit, {
-    owner,
-    repo,
-    pr,
-    config,
-    anthropic: params.anthropic,
-    log,
-  });
-  log.info(`${tag}: graded ${pr.head.sha} — ${verdict.reason}`);
+  if (mustGrade) {
+    const verdict = await gradeHead(octokit, {
+      owner,
+      repo,
+      pr,
+      config,
+      anthropic: params.anthropic,
+      log,
+    });
+    log.info(`${tag}: graded ${head} — ${verdict.reason}`);
+    conclusion = conclusionFor(verdict);
+    if (!verdict.eligible) return;
+
+    // The model call takes seconds. Act only on what is true now.
+    pr = await getPull();
+    if (pr.state !== "open" || pr.head.sha !== head || outOfScope(pr, config)) {
+      log.info(`${tag}: pull request changed during grading; not acting`);
+      return;
+    }
+    live = await readLive(octokit, { owner, repo, pr });
+  }
+
+  const decision = mergeDecision(conclusion, live.facts);
+  if (!decision.eligible) {
+    log.info(`${tag}: not merging — ${decision.reason}`);
+    return;
+  }
+
+  const rollup = await checksRollup(octokit, { owner, repo, ref: head, appId });
+  if (rollup === "red") {
+    log.warn(`${tag}: checks failing; not merging`);
+    return;
+  }
+
+  if (!live.approvedAtHead) {
+    await octokit.rest.pulls.createReview({
+      owner,
+      repo,
+      pull_number,
+      // Without this GitHub approves whatever the head is at call time.
+      commit_id: head,
+      event: "APPROVE",
+      body: APPROVAL_BODY,
+    });
+  }
+
+  if (rollup === "pending") {
+    // A later check_suite/status event re-enters reconcile.
+    log.info(`${tag}: checks still running`);
+    return;
+  }
+
+  try {
+    await octokit.rest.pulls.merge({
+      owner,
+      repo,
+      pull_number,
+      merge_method: config.merge_method,
+      // Refuse the merge if the head moved since it was graded.
+      sha: head,
+    });
+    log.info(`${tag}: merged ${head}`);
+  } catch (error) {
+    const status = (error as { status?: number }).status;
+    if (status === 405 || status === 409) {
+      // Already merged, blocked by branch protection, or the head moved —
+      // a later event will reconcile again.
+      log.info(`${tag}: merge skipped (${status})`);
+      return;
+    }
+    log.error(`${tag}: merge failed — ${errorMessage(error)}`);
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function readLive(
+  octokit: Octokit,
+  { owner, repo, pr }: { owner: string; repo: string; pr: PullRequest },
+): Promise<{ facts: LiveFacts; approvedAtHead: boolean }> {
+  const reviews: ReviewFacts[] = (
+    await octokit.paginate(octokit.rest.pulls.listReviews, {
+      owner,
+      repo,
+      pull_number: pr.number,
+      per_page: 100,
+    })
+  ).map((review) => ({
+    userLogin: review.user?.login ?? null,
+    state: review.state,
+    commitId: review.commit_id ?? null,
+  }));
+  return {
+    facts: {
+      labels: pr.labels.map((label) => label.name),
+      draft: pr.draft === true,
+      changesRequested: hasChangesRequested(reviews),
+    },
+    approvedAtHead: isApprovedAtHead(reviews, pr.head.sha),
+  };
 }
 
 async function gradeHead(
@@ -178,7 +301,7 @@ async function gradeHead(
       repo,
       check_run_id: Number(claim.id),
       status: "completed",
-      conclusion: verdict.eligible ? "success" : "neutral",
+      conclusion: conclusionFor(verdict),
       output: checkOutput(grade, verdict),
     });
     return verdict;
