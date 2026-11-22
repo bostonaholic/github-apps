@@ -66,10 +66,6 @@ export interface ReconcileParams {
   log?: Logger;
 }
 
-// Fixed text. Nothing the model wrote goes into a review.
-const APPROVAL_BODY =
-  "Approved by merge-warden: low risk, two-way door. The grade is in the `merge-warden` check on this commit.";
-
 // An in-progress own check run is a claim: another invocation is grading
 // this commit. A claim older than this was abandoned (the function was
 // killed) and no longer counts.
@@ -184,8 +180,9 @@ export async function reconcile(
       pull_number,
       // Without this GitHub approves whatever the head is at call time.
       commit_id: head,
+      // No body: the grade comment already explains the approval, and a
+      // review body shows on the pull request as a second comment.
       event: "APPROVE",
-      body: APPROVAL_BODY,
     });
 
   const rollupOfHead = () =>
