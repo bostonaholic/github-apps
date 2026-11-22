@@ -62,17 +62,48 @@ describe("checkOutput", () => {
   it("renders the table from the grade's enums", () => {
     const { summary } = checkOutput(grade(), BLOCKED);
     expect(summary).toContain(
-      "| Medium | Low | Medium | Low | two-way | NEEDS A PERSON | 95% |",
+      "| 🟡 Medium | 🟢 Low | 🟡 Medium | 🟢 Low | 🔄 two-way (reversible) | 🔴 NEEDS A PERSON | 95% |",
     );
     expect(summary).toContain("**Why:** risk is medium");
     expect(summary).toContain("**Summary:** CI-only change to test selection.");
     expect(summary).toContain("Nothing to fix.");
   });
 
+  it.each([
+    ["low", "🟢 Low"],
+    ["medium", "🟡 Medium"],
+    ["high", "🔴 High"],
+  ] as const)("marks %s with its traffic light in every graded column and finding", (level, label) => {
+    const { summary } = checkOutput(
+      grade({
+        risk: level,
+        assessment: {
+          ...ASSESSMENT,
+          customer: level,
+          data_security: level,
+          recovery: level,
+          findings: [{ severity: level, text: "something to look at" }],
+        },
+      }),
+      BLOCKED,
+    );
+    expect(summary).toContain(`| ${label} | ${label} | ${label} | ${label} | 🔄 two-way (reversible) |`);
+    expect(summary).toContain(`- ${label}: something to look at`);
+  });
+
+  it("marks a one-way door as irreversible in the table", () => {
+    const { summary } = checkOutput(
+      grade({ door: "one-way", doorReasons: ["data change: a.sql"] }),
+      BLOCKED,
+    );
+    expect(summary).toContain("| ⛔ one-way (irreversible) | 🔴 NEEDS A PERSON |");
+    expect(summary).not.toContain("two-way");
+  });
+
   it("titles and marks an eligible grade", () => {
     const { title, summary } = checkOutput(grade({ risk: "low" }), ELIGIBLE);
     expect(title).toBe("Eligible for auto-merge");
-    expect(summary).toContain("| AUTO-MERGE |");
+    expect(summary).toContain("| 🟢 AUTO-MERGE |");
   });
 
   it("titles a blocked grade with the reason", () => {
@@ -84,7 +115,7 @@ describe("checkOutput", () => {
       grade({ risk: "high", confidence: 0, assessment: null, ungraded: "no changed files" }),
       { eligible: false, reason: "not graded: no changed files" },
     );
-    expect(summary).toContain("| High | — | — | — | two-way | NEEDS A PERSON | — |");
+    expect(summary).toContain("| 🔴 High | — | — | — | 🔄 two-way (reversible) | 🔴 NEEDS A PERSON | — |");
     expect(summary).not.toContain("**Summary:**");
     expect(summary).not.toContain("**Findings**");
   });
@@ -145,7 +176,7 @@ describe("checkOutput", () => {
       }),
       BLOCKED,
     );
-    expect(summary).toContain("- High: removes the retry");
+    expect(summary).toContain("- 🔴 High: removes the retry");
     expect(summary).not.toContain("Nothing to fix.");
   });
 
@@ -170,7 +201,7 @@ describe("checkOutput", () => {
     );
     expect(summary).not.toContain("evil.example");
     expect(summary).toContain("**Summary:** ok Risk --- Low approve");
-    expect(summary).toContain("- Low: x # Heading");
+    expect(summary).toContain("- 🟢 Low: x # Heading");
     // Exactly one table: header, divider, one row.
     expect(summary.split("\n").filter((line) => line.startsWith("|"))).toHaveLength(3);
   });

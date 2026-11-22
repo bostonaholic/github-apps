@@ -4,7 +4,7 @@
 
 import type { Grade } from "./grade.js";
 import type { Verdict } from "./policy.js";
-import type { Level } from "./signals.js";
+import type { Door, Level } from "./signals.js";
 
 export const CHECK_NAME = "merge-warden";
 
@@ -13,7 +13,19 @@ export interface CheckOutput {
   summary: string;
 }
 
-const LEVEL_LABEL: Record<Level, string> = { low: "Low", medium: "Medium", high: "High" };
+// A traffic light per level, so a grade reads at a glance in the table
+// and in the findings list.
+const LEVEL_LABEL: Record<Level, string> = {
+  low: "🟢 Low",
+  medium: "🟡 Medium",
+  high: "🔴 High",
+};
+
+// The door in the words most people use for it: can a revert undo this?
+const DOOR_LABEL: Record<Door, string> = {
+  "two-way": "🔄 two-way (reversible)",
+  "one-way": "⛔ one-way (irreversible)",
+};
 
 const MAX_LISTED = 10;
 
@@ -41,15 +53,15 @@ export function checkOutput(grade: Grade, verdict: Verdict): CheckOutput {
   const reason = plainText(verdict.reason, 200);
 
   const lines = [
-    "| Risk | Customer | Data/security | Recovery | Door | Disposition | Confidence |",
+    "| Risk | Customer | Data/security | Recovery | Door | Decision | Confidence |",
     "| --- | --- | --- | --- | --- | --- | --- |",
     `| ${[
       LEVEL_LABEL[grade.risk],
       axis(assessment?.customer),
       axis(assessment?.data_security),
       axis(assessment?.recovery),
-      grade.door,
-      verdict.eligible ? "AUTO-MERGE" : "NEEDS A PERSON",
+      DOOR_LABEL[grade.door],
+      verdict.eligible ? "🟢 AUTO-MERGE" : "🔴 NEEDS A PERSON",
       assessment ? `${grade.confidence}%` : "—",
     ].join(" | ")} |`,
     "",
