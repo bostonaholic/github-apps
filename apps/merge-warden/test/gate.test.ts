@@ -269,7 +269,8 @@ function fakeOctokit(options: FakeOptions = {}) {
           return ownRuns.map((own) => ({ ...own }));
         }
         calls.rollups += 1;
-        return options.ciRuns ?? [CI_PASSED];
+        // Ids in list order, as GitHub assigns them: a later run is newer.
+        return (options.ciRuns ?? [CI_PASSED]).map((ci, i) => ({ id: i + 1, ...ci }));
       }
       throw new Error(`unexpected paginate route: ${String(route)}`);
     },

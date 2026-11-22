@@ -38,6 +38,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Approves without a review body, so the grade comment is the app's only
   comment on the pull request.
 
+- A failed check run no longer blocks the merge after a newer run of the
+  same check succeeds. A workflow triggered by `opened`, `labeled` and
+  `unlabeled` leaves three runs on one commit; the app now reads only the
+  newest run of each check.
+
 ## [0.1.0] - 2026-11-22
 
 ### Changed

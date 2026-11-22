@@ -5,6 +5,9 @@ const APP_ID = 4242;
 const CI_APP = { id: 15368 };
 
 interface FakeRun {
+  // GitHub assigns ids in creation order. Default: position in the list.
+  id?: number;
+  // Default: unique per position, so unnamed runs stay distinct checks.
   name?: string;
   status: string;
   conclusion: string | null;
@@ -44,7 +47,11 @@ function fakeOctokit(options: FakeOptions = {}) {
     paginate: async (route: unknown, params: Record<string, unknown>) => {
       if (route !== "listForRef") throw new Error(`unexpected route: ${String(route)}`);
       calls.listForRef.push(params);
-      return options.checkRuns ?? [];
+      return (options.checkRuns ?? []).map((run, i) => ({
+        id: i + 1,
+        name: `check-${i + 1}`,
+        ...run,
+      }));
     },
   };
 
@@ -129,6 +136,63 @@ describe("checksRollup", () => {
         const { result } = await rollup({ checkRuns: [{ ...passed, conclusion }] });
         expect(result).toBe("pending");
       }
+    });
+  });
+
+  describe("runs of the same check", () => {
+    // One commit, one workflow, three triggers (opened, labeled,
+    // unlabeled): GitHub keeps every run, each in its own check suite.
+    const failed: FakeRun = { ...passed, conclusion: "failure" };
+
+    it("ignore a failed run superseded by a newer success", async () => {
+      const { result } = await rollup({
+        checkRuns: [
+          { ...failed, id: 1 },
+          { ...passed, id: 2 },
+          { ...passed, id: 3 },
+        ],
+      });
+      expect(result).toBe("green");
+    });
+
+    it("pick the newest by id, not by list order", async () => {
+      const { result } = await rollup({
+        checkRuns: [
+          { ...passed, id: 2 },
+          { ...failed, id: 1 },
+        ],
+      });
+      expect(result).toBe("green");
+    });
+
+    it("are red when the newest run failed", async () => {
+      const { result } = await rollup({
+        checkRuns: [
+          { ...passed, id: 1 },
+          { ...failed, id: 2 },
+        ],
+      });
+      expect(result).toBe("red");
+    });
+
+    it("are pending while the newest run is still running", async () => {
+      const { result } = await rollup({
+        checkRuns: [
+          { ...failed, id: 1 },
+          { ...passed, id: 2, status: "in_progress", conclusion: null },
+        ],
+      });
+      expect(result).toBe("pending");
+    });
+
+    it("are told apart by app: another app's newer success hides no failure", async () => {
+      const { result } = await rollup({
+        checkRuns: [
+          { ...failed, id: 1 },
+          { ...passed, id: 2, app: { id: 8329 } },
+        ],
+      });
+      expect(result).toBe("red");
     });
   });
 
