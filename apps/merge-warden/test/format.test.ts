@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BUILD_FOOTER } from "../src/build.js";
 import { COMMENT_MARKER, checkOutput, commentBody, plainText } from "../src/format.js";
 import type { Assessment, Grade } from "../src/grade.js";
 
@@ -80,6 +81,10 @@ describe("commentBody frame", () => {
     expect(body.startsWith(COMMENT_MARKER)).toBe(true);
     expect(body).toContain("### ⚠️ merge-warden: needs a person");
     expect(body).toContain("Graded commit abc1234.");
+  });
+
+  it("ends with the build footer", () => {
+    expect(commentBody(grade(), BLOCKED, SHA).endsWith(`\n\n${BUILD_FOOTER}`)).toBe(true);
   });
 
   it("heads an eligible grade as eligible", () => {
