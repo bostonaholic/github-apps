@@ -235,6 +235,30 @@ describe("reconcile", () => {
     expect(calls.approvals).toHaveLength(1);
   });
 
+  it("waits when only a commit status has reported and the repo has workflows", async () => {
+    const calls = await run({
+      workflows: true,
+      combinedStatus: {
+        state: "success",
+        total_count: 1,
+        statuses: [{ context: "task-list-completed", state: "success" }],
+      },
+    });
+    expect(calls.merges).toHaveLength(0);
+    expect(calls.approvals).toHaveLength(1);
+  });
+
+  it("merges on a green commit status alone when the repo has no workflows", async () => {
+    const calls = await run({
+      combinedStatus: {
+        state: "success",
+        total_count: 1,
+        statuses: [{ context: "task-list-completed", state: "success" }],
+      },
+    });
+    expect(calls.merges).toHaveLength(1);
+  });
+
   it("waits while checks are still running", async () => {
     const calls = await run({
       checkRuns: [{ name: "ci", status: "in_progress", conclusion: null }],

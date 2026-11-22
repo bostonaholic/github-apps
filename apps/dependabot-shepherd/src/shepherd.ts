@@ -177,10 +177,11 @@ async function listCombinedStatuses(
 }
 
 // Combined verdict over check runs and (legacy) commit statuses on a ref.
-// No checks and no statuses at all counts as green ONLY on a repo with no
-// workflow files: zero-touch on repos without CI is deliberate (see
-// README), but right after a PR opens, Actions may not have created its
-// check runs yet — merging into that window would bypass CI.
+// No check runs counts as green ONLY on a repo with no workflow files:
+// zero-touch on repos without CI is deliberate (see README), but right
+// after a PR opens, Actions may not have created its check runs yet —
+// merging into that window would bypass CI. Commit statuses do not close
+// that window: other apps post them before Actions creates its check runs.
 async function checksRollup(
   octokit: Octokit,
   { owner, repo, ref }: { owner: string; repo: string; ref: string },
@@ -206,16 +207,15 @@ async function checksRollup(
 
   const allStatuses = await listCombinedStatuses(octokit, { owner, repo, ref });
   const statuses = allStatuses.filter((status) => !isIgnoredCheck(status.context));
-  const sawStatus = statuses.length > 0;
   for (const status of statuses) {
     if (status.state === "pending") pending = true;
     else if (status.state !== "success") return "red";
   }
 
-  if (!sawCheck && !sawStatus) {
+  if (!sawCheck && (await hasWorkflows(octokit, owner, repo))) {
     // A later check_suite/status event re-enters when CI shows up.
     // Ignored checks do not count — they never report on these PRs.
-    return (await hasWorkflows(octokit, owner, repo)) ? "pending" : "green";
+    return "pending";
   }
 
   return pending ? "pending" : "green";
