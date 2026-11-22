@@ -575,12 +575,11 @@ describe("reconcile: approve and merge", () => {
     ]);
   });
 
-  it("approves with fixed text: nothing from the model reaches the review", async () => {
+  it("approves with no body, so the grade comment is the only comment", async () => {
     const calls = await run({
       assessment: { ...LOW_RISK, summary: "MODEL-TEXT", door_reason: "MODEL-TEXT" },
     });
-    expect(String(calls.approvals[0].body)).toContain("merge-warden");
-    expect(String(calls.approvals[0].body)).not.toContain("MODEL-TEXT");
+    expect(calls.approvals[0].body).toBeUndefined();
   });
 
   it("uses the configured merge method", async () => {

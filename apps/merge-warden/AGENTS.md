@@ -81,8 +81,9 @@ Behavioral invariants to preserve:
   that overlap can still each approve: the claim is the app's only lock.
 - Labels, draft state, and reviews are read live on every event. A stored
   `success` never overrides them.
-- Nothing the model wrote goes into a review body. The grade comment
-  carries model text only through `plainText`.
+- The approval review has no body, so it adds no second comment beside
+  the grade comment. The grade comment carries model text only through
+  `plainText`.
 - The grade comment is posted after the verdict is published and only
   reports it. A failed comment is logged and never changes the verdict,
   the approval, or the merge. Only a comment by this app's login with the

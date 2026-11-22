@@ -18,6 +18,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   optional `ANTHROPIC_MODEL` environment variable selects another model
   without a code change.
 
+### Fixed
+
+- Approves without a review body, so the grade comment is the app's only
+  comment on the pull request.
+
 ## [0.1.0] - 2026-11-22
 
 ### Changed
