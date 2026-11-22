@@ -22,6 +22,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Approves without a review body, so the grade comment is the app's only
   comment on the pull request.
+- No longer marks a change to an env template (`.env.example`,
+  `.env.sample`, `.env.template`, `.env.dist`) as a one-way door. Real
+  `.env` files still are.
 
 ## [0.1.0] - 2026-11-22
 

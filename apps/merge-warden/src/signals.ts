@@ -56,7 +56,7 @@ const MEDIUM_CHANGED_FILES = 20;
 // dot: match dotfiles and dot-directories. nocase: SCHEMA.SQL is schema.sql.
 const GLOB_OPTIONS = { dot: true, nocase: true };
 
-const ONE_WAY_GLOBS: readonly { category: string; globs: string[] }[] = [
+const ONE_WAY_GLOBS: readonly { category: string; globs: string[]; ignore?: string[] }[] = [
   {
     category: "data change",
     globs: ["**/migrations/**", "**/migrate/**", "**/*.sql", "**/schema.*"],
@@ -68,6 +68,8 @@ const ONE_WAY_GLOBS: readonly { category: string; globs: string[] }[] = [
   {
     category: "security and access",
     globs: ["**/.env*", "**/secrets/**", "**/auth/**", "**/iam/**", "**/*.tf"],
+    // Committed templates hold placeholders, not secrets; a revert undoes them.
+    ignore: ["**/.env.{example,sample,template,dist}"],
   },
 ];
 
@@ -90,9 +92,9 @@ export function readSignals(
   const oneWay = [
     ...ONE_WAY_GLOBS,
     { category: "configured one-way path", globs: rules.one_way_door_paths },
-  ].map(({ category, globs }) => ({
+  ].map(({ category, globs, ignore }: { category: string; globs: string[]; ignore?: string[] }) => ({
     category,
-    matches: picomatch(globs, GLOB_OPTIONS),
+    matches: picomatch(globs, { ...GLOB_OPTIONS, ignore }),
   }));
   const highRisk = picomatch(
     [...HIGH_RISK_GLOBS, ...rules.high_risk_paths],

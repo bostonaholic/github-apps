@@ -57,6 +57,15 @@ describe("readSignals: door", () => {
     expect(result.doorReasons).toContain(`${category}: ${path}`);
   });
 
+  it.each([".env.example", "apps/web/.env.sample", ".env.template", "config/.env.dist"])(
+    "keeps the env template %s a two-way door",
+    (path) => {
+      const result = signals([file(path)]);
+      expect(result.door).toBe("two-way");
+      expect(result.doorReasons).toEqual([]);
+    },
+  );
+
   it("matches a path inside a dot-directory", () => {
     expect(signals([file(".deploy/secrets/key.yml")]).door).toBe("one-way");
   });
