@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BUILD_FOOTER } from "../src/build.js";
+import { commentFooter } from "../src/build.js";
 import { COMMENT_MARKER, checkOutput, commentBody, plainText } from "../src/format.js";
 import type { Assessment, Grade } from "../src/grade.js";
 
@@ -29,10 +29,11 @@ function grade(overrides: Partial<Grade> = {}): Grade {
 const ELIGIBLE = { eligible: true, reason: "two-way door, low risk, confidence 95%" };
 const BLOCKED = { eligible: false, reason: "risk is medium" };
 const SHA = "abc1234def5678";
+const MODEL = "claude-haiku-5-5";
 
 // The check title and the comment body: what a person reads.
 function rendered(g: Grade, v: { eligible: boolean; reason: string }) {
-  return { title: checkOutput(g, v).title, summary: commentBody(g, v, SHA) };
+  return { title: checkOutput(g, v).title, summary: commentBody(g, v, SHA, MODEL) };
 }
 
 describe("plainText", () => {
@@ -76,18 +77,27 @@ describe("checkOutput summary", () => {
 
 describe("commentBody frame", () => {
   it("starts with the marker and names the graded commit", () => {
-    const body = commentBody(grade(), BLOCKED, SHA);
+    const body = commentBody(grade(), BLOCKED, SHA, MODEL);
     expect(body.startsWith(COMMENT_MARKER)).toBe(true);
     expect(body).toContain("### ⚠️ merge-warden: needs a person");
     expect(body).toContain("Graded commit abc1234.");
   });
 
-  it("ends with the build footer", () => {
-    expect(commentBody(grade(), BLOCKED, SHA).endsWith(`\n\n${BUILD_FOOTER}`)).toBe(true);
+  it("ends with the build footer naming the model that graded the diff", () => {
+    const body = commentBody(grade(), BLOCKED, SHA, MODEL);
+    expect(body.endsWith(`\n\n${commentFooter(MODEL)}`)).toBe(true);
+    expect(body).toContain("graded by claude-haiku-5-5");
+  });
+
+  it("names no model when the diff was not graded", () => {
+    const ungraded = grade({ assessment: null, ungraded: "the model returned no assessment" });
+    const body = commentBody(ungraded, BLOCKED, SHA, MODEL);
+    expect(body.endsWith(`\n\n${commentFooter(null)}`)).toBe(true);
+    expect(body).not.toContain("graded by");
   });
 
   it("heads an eligible grade as eligible", () => {
-    expect(commentBody(grade({ risk: "low" }), ELIGIBLE, SHA)).toContain(
+    expect(commentBody(grade({ risk: "low" }), ELIGIBLE, SHA, MODEL)).toContain(
       "### ✅ merge-warden: eligible for auto-merge",
     );
   });

@@ -3,7 +3,7 @@
 // only. Free text from the model and from file paths is
 // flattened by plainText before it is rendered.
 
-import { BUILD_FOOTER } from "./build.js";
+import { commentFooter } from "./build.js";
 import type { Grade } from "./grade.js";
 import type { Verdict } from "./policy.js";
 import type { Door, Level } from "./signals.js";
@@ -66,7 +66,14 @@ export function checkOutput(grade: Grade, verdict: Verdict): CheckOutput {
   };
 }
 
-export function commentBody(grade: Grade, verdict: Verdict, sha: string): string {
+// `model` is the model asked to grade; the footer names it only when it
+// returned an assessment.
+export function commentBody(
+  grade: Grade,
+  verdict: Verdict,
+  sha: string,
+  model: string,
+): string {
   const heading = verdict.eligible
     ? "### ✅ merge-warden: eligible for auto-merge"
     : "### ⚠️ merge-warden: needs a person";
@@ -78,7 +85,7 @@ export function commentBody(grade: Grade, verdict: Verdict, sha: string): string
     "",
     `<sub>Graded commit ${sha.slice(0, 7)}. A new commit is graded again and this comment updates.</sub>`,
     "",
-    BUILD_FOOTER,
+    commentFooter(grade.assessment ? model : null),
   ].join("\n");
 }
 
