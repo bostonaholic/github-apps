@@ -12,7 +12,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Context } from "probot";
-import { assess } from "./assess.js";
+import { assess, modelFromEnv } from "./assess.js";
 import { armAutoMerge, disarmAutoMerge, requiresOwnCheck } from "./automerge.js";
 import { checksRollup } from "./checks.js";
 import type { WardenConfig } from "./config.js";
@@ -412,7 +412,7 @@ async function gradeHead(
       repo,
       issue_number: pr.number,
       botLogin,
-      body: commentBody(grade, verdict, pr.head.sha),
+      body: commentBody(grade, verdict, pr.head.sha, modelFromEnv()),
     });
   } catch (error) {
     log.warn(`${owner}/${repo}#${pr.number}: grade comment failed — ${errorMessage(error)}`);
