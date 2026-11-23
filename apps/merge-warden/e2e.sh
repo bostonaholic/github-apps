@@ -5,7 +5,9 @@
 # approval, and merge for each scenario: a low-risk change merges once CI
 # is green, a one-way-door path and the one-way-door label are never
 # approved or merged, no-auto-merge stops a success verdict, red CI blocks
-# until a fixing commit, and a PR off the default branch gets no check at all.
+# until a fixing commit, a red CI run superseded by a green one on the same
+# commit does not block the merge, and a PR off the default branch gets no
+# check at all.
 #
 # Requires: gh (authenticated as the sandbox owner, the default `authors`),
 # the app installed on the sandbox repo, and the sandbox prepared with the
@@ -203,12 +205,15 @@ assert_untouched() {
   log "  PR #$number untouched (open, not approved)"
 }
 
+# The newest run of the sandbox `check` job on the sha. A label event
+# starts another run on the same commit; only the newest one counts.
 wait_for_ci_conclusion() {
   local sha="$1" want="$2" deadline got
   deadline=$(( $(date +%s) + POLL_TIMEOUT ))
   while (( $(date +%s) < deadline )); do
     got=$(gh api "repos/$REPO/commits/$sha/check-runs?check_name=check" \
-      --jq '[.check_runs[] | select(.status == "completed")][0].conclusion // empty' 2>/dev/null || true)
+      --jq '[.check_runs[]] | sort_by(.id) | last | select(. != null and .status == "completed") | .conclusion' \
+      2>/dev/null || true)
     if [[ "$got" == "$want" ]]; then
       log "  CI on $sha concluded: $got"
       return 0
@@ -222,6 +227,10 @@ add_label() {
   gh api -X POST "repos/$REPO/issues/$1/labels" -f "labels[]=$2" >/dev/null
 }
 
+remove_label() {
+  gh api -X DELETE "repos/$REPO/issues/$1/labels/$2" >/dev/null
+}
+
 log "== preflight"
 # The run approves and merges PRs into the target's main: refuse any repo
 # that is not a sandbox.
@@ -233,7 +242,9 @@ for f in .github/workflows/e2e-ci.yml .github/merge-warden.yml; do
 done
 gh api "repos/$REPO/contents/.github/workflows/e2e-ci.yml" --jq .content | base64 -d | grep -q e2e-fail-ci \
   || fail "$REPO's e2e-ci workflow predates the [e2e-fail-ci] commit-message trigger — update it from the e2e skill"
-for label in one-way-door no-auto-merge; do
+gh api "repos/$REPO/contents/.github/workflows/e2e-ci.yml" --jq .content | base64 -d | grep -q unlabeled \
+  || fail "$REPO's e2e-ci workflow predates the e2e-fail-ci label trigger — update it from the e2e skill"
+for label in one-way-door no-auto-merge e2e-fail-ci; do
   gh api -X POST "repos/$REPO/labels" -f name="$label" -f color=cccccc >/dev/null 2>&1 || true
 done
 if [[ -n "${E2E_HOSTED:-}" ]]; then
@@ -321,4 +332,24 @@ runs=$(gh api "repos/$REPO/commits/$(head_sha "$PR6")/check-runs?check_name=$CHE
 [[ "$runs" == "0" ]] || fail "PR #$PR6 targets $BASE6 but got $runs $CHECK_NAME check run(s)"
 log "  PR #$PR6 has no $CHECK_NAME check"
 
-log "E2E PASS ($REPO PRs #$PR1 #$PR2 #$PR3 #$PR4 #$PR5 #$PR6)"
+log "== 7: a superseded red CI run does not block the merge"
+# The e2e-fail-ci label fails the sandbox CI. Labeling and unlabeling one
+# commit leaves a failed run and a newer passing run, each in its own check
+# suite; checksRollup must read only the newest.
+open_pr "e2e-relabel-$TS" main true "notes/e2e-$TS-7.md" "Notes from e2e run $TS."
+PR7="$OPENED_PR"
+HEAD7=$(head_sha "$PR7")
+wait_for_check "$HEAD7" success "Eligible for auto-merge"
+wait_for_ci_conclusion "$HEAD7" success
+add_label "$PR7" e2e-fail-ci
+wait_for_ci_conclusion "$HEAD7" failure
+gh pr ready "$PR7" --repo "$REPO" >/dev/null
+log "  draft -> labeled e2e-fail-ci (CI red) -> ready"
+assert_untouched "$PR7"
+remove_label "$PR7" e2e-fail-ci
+log "  unlabeled e2e-fail-ci; same commit $HEAD7"
+wait_for_ci_conclusion "$HEAD7" success
+wait_merged "$PR7"
+assert_approved "$PR7"
+
+log "E2E PASS ($REPO PRs #$PR1 #$PR2 #$PR3 #$PR4 #$PR5 #$PR6 #$PR7)"
