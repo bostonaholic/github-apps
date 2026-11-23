@@ -259,7 +259,7 @@ wait_for_comment "$PR1" "✅ merge-warden: eligible for auto-merge" "🔄 Revers
 wait_merged "$PR1"
 assert_approved "$PR1"
 
-log "== 2: one-way-door path -> neutral, never approved or merged"
+log "== 2: schema migration, judged one-way by the model -> neutral, never approved or merged"
 open_pr "e2e-migration-$TS" main false "db/migrations/e2e_$TS.sql" "ALTER TABLE e2e ADD COLUMN note text;"
 PR2="$OPENED_PR"
 wait_for_check "$(head_sha "$PR2")" neutral "one-way door"
