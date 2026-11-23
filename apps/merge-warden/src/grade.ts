@@ -1,6 +1,6 @@
-// Pure: combine the deterministic signals, the model's assessment, and
-// the pull request's labels into one grade. The model can raise risk or
-// declare a one-way door; nothing here lets it lower a rule's result.
+// Pure: combine the diff-size signals, the model's assessment, and the
+// pull request's labels into one grade. The model decides the door; the
+// label can only add a one-way door, and nothing lowers the size floor.
 
 import { ONE_WAY_DOOR_LABEL } from "./config.js";
 import { maxLevel, type Door, type Level, type Signals } from "./signals.js";
@@ -38,7 +38,7 @@ export function buildGrade(
   assessment: Assessment | null,
   labels: string[],
 ): Grade {
-  const doorReasons = [...signals.doorReasons];
+  const doorReasons: string[] = [];
   if (labels.includes(ONE_WAY_DOOR_LABEL)) {
     doorReasons.push(`label: ${ONE_WAY_DOOR_LABEL}`);
   }

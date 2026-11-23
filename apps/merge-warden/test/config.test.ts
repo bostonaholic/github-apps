@@ -7,8 +7,6 @@ describe("normalizeConfig", () => {
       enabled: true,
       authors: ["octocat"],
       merge_method: "squash",
-      one_way_door_paths: [],
-      high_risk_paths: [],
       ci_checks: [],
     });
   });
@@ -40,9 +38,6 @@ describe("normalizeConfig", () => {
 
   it("accepts a bare string as a one-entry list", () => {
     expect(normalizeConfig({ authors: "alice" }, "o").authors).toEqual(["alice"]);
-    expect(
-      normalizeConfig({ one_way_door_paths: "db/**" }, "o").one_way_door_paths,
-    ).toEqual(["db/**"]);
   });
 
   it("makes a malformed authors value nobody, not the owner", () => {
@@ -63,12 +58,9 @@ describe("normalizeConfig", () => {
     );
   });
 
-  it("drops non-string and empty path entries", () => {
-    const config = normalizeConfig(
-      { one_way_door_paths: ["db/**", 7, "", null], high_risk_paths: ["infra/**"] },
-      "o",
-    );
-    expect(config.one_way_door_paths).toEqual(["db/**"]);
-    expect(config.high_risk_paths).toEqual(["infra/**"]);
+  it("drops non-string and empty list entries", () => {
+    expect(normalizeConfig({ ci_checks: ["test", 7, "", null] }, "o").ci_checks).toEqual([
+      "test",
+    ]);
   });
 });

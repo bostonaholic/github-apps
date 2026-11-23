@@ -7,14 +7,12 @@ import {
   type ChangedFile,
 } from "../src/signals.js";
 
-const NO_RULES = { one_way_door_paths: [], high_risk_paths: [] };
-
 function file(filename: string, overrides: Partial<ChangedFile> = {}): ChangedFile {
   return { filename, status: "modified", changes: 2, patch: "@@ -1 +1 @@\n-a\n+b", ...overrides };
 }
 
-function signals(files: ChangedFile[], rules = NO_RULES) {
-  return readSignals(files, rules, files.length);
+function signals(files: ChangedFile[]) {
+  return readSignals(files, files.length);
 }
 
 describe("maxLevel", () => {
@@ -25,76 +23,24 @@ describe("maxLevel", () => {
   });
 });
 
-describe("readSignals: door", () => {
-  it("is two-way with no reasons for an ordinary source change", () => {
+describe("readSignals: risk floor", () => {
+  it("is low with no reasons for an ordinary change", () => {
     const result = signals([file("src/app.ts"), file("README.md")]);
-    expect(result.door).toBe("two-way");
-    expect(result.doorReasons).toEqual([]);
     expect(result.riskFloor).toBe("low");
+    expect(result.floorReasons).toEqual([]);
     expect(result.ungradeable).toBeNull();
   });
 
   it.each([
     "db/migrations/001_add_users.sql",
-    "api/openapi.yaml",
     ".env",
-    ".env.example",
     "src/auth/session.ts",
-    "infra/main.tf",
-  ])("leaves %s to the model when no path is configured", (path) => {
+    ".github/workflows/ci.yml",
+    "CODEOWNERS",
+  ])("does not judge %s by its path", (path) => {
     const result = signals([file(path)]);
-    expect(result.door).toBe("two-way");
-    expect(result.doorReasons).toEqual([]);
-  });
-
-  const ONE_WAY_RULES = { one_way_door_paths: ["billing/**", "**/*.sql"], high_risk_paths: [] };
-
-  it("marks a configured one-way path", () => {
-    expect(signals([file("billing/invoice.ts")], ONE_WAY_RULES).doorReasons).toEqual([
-      "configured one-way path: billing/invoice.ts",
-    ]);
-  });
-
-  it("matches a path inside a dot-directory", () => {
-    const rules = { one_way_door_paths: ["**/secrets/**"], high_risk_paths: [] };
-    expect(signals([file(".deploy/secrets/key.yml")], rules).door).toBe("one-way");
-  });
-
-  it("matches case-insensitively", () => {
-    expect(signals([file("DB/Migrations/001.SQL")], ONE_WAY_RULES).door).toBe("one-way");
-  });
-
-  it("matches the previous name of a renamed file", () => {
-    const result = signals(
-      [
-        file("archive/old_change.txt", {
-          status: "renamed",
-          previous_filename: "billing/old_change.rb",
-          changes: 0,
-          patch: undefined,
-        }),
-      ],
-      ONE_WAY_RULES,
-    );
-    expect(result.door).toBe("one-way");
-    expect(result.doorReasons).toEqual(["configured one-way path: billing/old_change.rb"]);
-  });
-});
-
-describe("readSignals: risk floor", () => {
-  const HIGH_RISK_RULES = { one_way_door_paths: [], high_risk_paths: [".github/workflows/**"] };
-
-  it("leaves workflow and CODEOWNERS changes to the model when no path is configured", () => {
-    const result = signals([file(".github/workflows/ci.yml"), file("CODEOWNERS")]);
     expect(result.riskFloor).toBe("low");
     expect(result.floorReasons).toEqual([]);
-  });
-
-  it("floors a configured high-risk path at high while leaving the door two-way", () => {
-    const result = signals([file(".github/workflows/ci.yml")], HIGH_RISK_RULES);
-    expect(result.riskFloor).toBe("high");
-    expect(result.door).toBe("two-way");
-    expect(result.floorReasons).toEqual(["high-risk path: .github/workflows/ci.yml"]);
   });
 
   it("floors a diff over 400 changed lines at medium", () => {
@@ -107,11 +53,6 @@ describe("readSignals: risk floor", () => {
       Array.from({ length: count }, (_, i) => file(`src/f${i}.ts`, { changes: 1 }));
     expect(signals(files(20)).riskFloor).toBe("low");
     expect(signals(files(21)).riskFloor).toBe("medium");
-  });
-
-  it("keeps high when a large diff also touches a high-risk path", () => {
-    const result = signals([file(".github/workflows/ci.yml", { changes: 900 })], HIGH_RISK_RULES);
-    expect(result.riskFloor).toBe("high");
   });
 });
 
@@ -155,7 +96,7 @@ describe("readSignals: gradeable", () => {
   });
 
   it("rejects a file list that does not match the pull request's count", () => {
-    const result = readSignals([file("a.ts")], NO_RULES, 3);
+    const result = readSignals([file("a.ts")], 3);
     expect(result.ungradeable).toBe("file list is incomplete (1 of 3)");
   });
 
@@ -163,12 +104,5 @@ describe("readSignals: gradeable", () => {
     const big = "x".repeat(MAX_DIFF_CHARS / 2 + 1);
     const result = signals([file("a.ts", { patch: big }), file("b.ts", { patch: big })]);
     expect(result.ungradeable).toBe("diff exceeds the size budget");
-  });
-
-  it("still reports the door for a diff it cannot grade", () => {
-    const rules = { one_way_door_paths: ["db/**"], high_risk_paths: [] };
-    const result = signals([file("db/migrations/dump.bin", { patch: undefined })], rules);
-    expect(result.door).toBe("one-way");
-    expect(result.ungradeable).not.toBeNull();
   });
 });
