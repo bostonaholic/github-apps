@@ -131,3 +131,31 @@ export function findRelativeLinks(markdown) {
     .map((m) => m[1])
     .filter((url) => !/^(https?:|mailto:)/.test(url));
 }
+
+// A blank line between two bullets turns a tight list into a loose one and
+// ships verbatim in the release notes. Returns the "### " heading of every
+// section where a bullet follows a blank line that follows another bullet
+// (or its indented continuation).
+export function findSplitLists(markdown) {
+  const offending = new Set();
+  let heading = null;
+  let inList = false;
+  let blankBefore = false;
+  for (const line of markdown.split("\n")) {
+    if (line.trim() === "") {
+      blankBefore = true;
+      continue;
+    }
+    if (line.startsWith("### ")) {
+      heading = line;
+      inList = false;
+    } else if (line.startsWith("- ")) {
+      if (inList && blankBefore) offending.add(heading);
+      inList = true;
+    } else if (!/^\s/.test(line)) {
+      inList = false;
+    }
+    blankBefore = false;
+  }
+  return [...offending];
+}

@@ -8,6 +8,7 @@
 import { readFileSync } from "node:fs";
 import {
   findRelativeLinks,
+  findSplitLists,
   hasSection,
   parseVersionFromTag,
   suggestBump,
@@ -35,6 +36,11 @@ if (!unreleased) fail(`${rel}/CHANGELOG.md [Unreleased] is empty: nothing to rel
 const relative = findRelativeLinks(unreleased);
 if (relative.length) {
   fail(`[Unreleased] has relative links (release notes need absolute URLs): ${relative.join(", ")}`);
+}
+
+const split = findSplitLists(unreleased);
+if (split.length) {
+  fail(`[Unreleased] has a blank line between list items under: ${split.join(", ")}`);
 }
 
 const tags = appTags(root, app);
