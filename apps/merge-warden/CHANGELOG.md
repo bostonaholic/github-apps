@@ -18,6 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The grade comment footer names the model that graded the diff, e.g.
   `merge-warden vX.Y.Z · cb6ab00 · graded by claude-haiku-5-5`. A comment
   for a diff the model did not grade names no model.
+- The app reacts 👀 to a `/merge-warden grade` comment as soon as it
+  receives it, so the commenter sees the request arrived. The reaction
+  is removed if the commenter lacks write access.
 
 ### Changed
 
