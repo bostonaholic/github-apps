@@ -6,6 +6,7 @@ import {
   ONE_WAY_DOOR_LABEL,
   normalizeConfig,
 } from "./config.js";
+import { UNKNOWN_MODEL_REPLY, canGrade, parseCommand } from "./command.js";
 import { reconcile, type Mode } from "./gate.js";
 
 const CONFIG_FILE = "merge-warden.yml";
@@ -15,7 +16,8 @@ type ReconcileEvent =
   | "pull_request_review"
   | "check_suite"
   | "check_run"
-  | "status";
+  | "status"
+  | "issue_comment";
 
 interface Identity {
   appId: number;
@@ -57,6 +59,7 @@ export default (app: Probot) => {
     context: Context<ReconcileEvent>,
     pull_number: number,
     mode: Mode,
+    model?: string,
   ): Promise<void> {
     const work = (async () => {
       const { owner, repo } = context.repo();
@@ -69,6 +72,7 @@ export default (app: Probot) => {
         config: normalizeConfig(raw as Record<string, unknown> | null, owner),
         ...(await identity()),
         anthropic,
+        ...(model === undefined ? {} : { model }),
         log: context.log,
       });
     })();
@@ -143,5 +147,35 @@ export default (app: Probot) => {
     for (const pr of context.payload.check_run.pull_requests) {
       await run(context, pr.number, "regrade");
     }
+  });
+
+  // `/merge-warden grade [model]` on a pull request: grade the head commit
+  // again, like "Re-run", with the default model or the one named. The
+  // newest grade is the verdict, so this takes write access.
+  app.on("issue_comment.created", async (context) => {
+    const { issue, comment } = context.payload;
+    const user = comment.user;
+    if (!issue.pull_request || user === null || user.type === "Bot") return;
+    const command = parseCommand(comment.body);
+    if (command === null) return;
+
+    const { data } = await context.octokit.rest.repos.getCollaboratorPermissionLevel({
+      ...context.repo(),
+      username: user.login,
+    });
+    if (!canGrade(data.permission)) {
+      context.log.info(
+        `${issue.number}: ignoring grade command from ${user.login} (${data.permission})`,
+      );
+      return;
+    }
+
+    if (command.kind === "unknown-model") {
+      await context.octokit.rest.issues.createComment(
+        context.issue({ body: UNKNOWN_MODEL_REPLY }),
+      );
+      return;
+    }
+    await run(context, issue.number, "regrade", command.model ?? undefined);
   });
 };

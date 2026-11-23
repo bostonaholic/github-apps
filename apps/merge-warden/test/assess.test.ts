@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { DEFAULT_MODEL, assess, modelFromEnv, renderDiff } from "../src/assess.js";
 import type { Assessment } from "../src/grade.js";
 import type { ChangedFile } from "../src/signals.js";
@@ -44,11 +44,11 @@ function recordingLog() {
   };
 }
 
-async function run(respond: () => unknown) {
+async function run(respond: () => unknown, model = DEFAULT_MODEL) {
   const { client, requests } = fakeClient(respond);
   const { log, lines } = recordingLog();
   // The fake is structurally compatible with the one method assess uses.
-  const result = await assess(client as never, FILES, log);
+  const result = await assess(client as never, FILES, log, model);
   return { result, requests, lines };
 }
 
@@ -89,14 +89,12 @@ describe("modelFromEnv", () => {
 });
 
 describe("assess", () => {
-  // Clean env per test, so a developer's ANTHROPIC_MODEL cannot leak in.
-  beforeEach(() => vi.stubEnv("ANTHROPIC_MODEL", ""));
-  afterEach(() => vi.unstubAllEnvs());
-
-  it("sends ANTHROPIC_MODEL when it is set", async () => {
-    vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
-    const { requests } = await run(() => ({ stop_reason: "end_turn", parsed_output: VALID }));
-    expect(requests[0].model).toBe("claude-sonnet-5-5");
+  it("sends the model it is given", async () => {
+    const { requests } = await run(
+      () => ({ stop_reason: "end_turn", parsed_output: VALID }),
+      "claude-opus-5-5",
+    );
+    expect(requests[0].model).toBe("claude-opus-5-5");
   });
 
   it("returns the parsed assessment", async () => {
@@ -104,7 +102,7 @@ describe("assess", () => {
     expect(result).toEqual(VALID);
   });
 
-  it("asks the configured model for structured output over the rendered diff", async () => {
+  it("asks for structured output over the rendered diff", async () => {
     const { requests } = await run(() => ({ stop_reason: "end_turn", parsed_output: VALID }));
     expect(requests).toHaveLength(1);
     const request = requests[0] as {

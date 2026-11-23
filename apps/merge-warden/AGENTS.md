@@ -35,8 +35,11 @@ Strict layering, pure core with I/O at the edges:
 - `src/checks.ts` — I/O: `checksRollup` over check runs and commit
   statuses; green needs every check named in `ci_checks`. A copy of
   dependabot-shepherd's with three differences listed in its header
+- `src/command.ts` — pure: parses the `/merge-warden grade [model]`
+  PR comment command (aliases, model ID check) and the write-access test
 - `src/format.ts` — pure: check-run title and short summary, and the
-  sticky grade comment body (`commentBody`, found by `COMMENT_MARKER`);
+  sticky grade comment body (`commentBody`, one per model, found by
+  `commentMarker(model)`; `LEGACY_COMMENT_MARKER` is the default model's);
   `plainText` flattens every untrusted string before it is rendered
 - `src/assess.ts` — I/O: the one model call (`client.messages.parse` with
   a zod schema); returns `null` on refusal, truncation, schema failure,
@@ -65,6 +68,9 @@ Behavioral invariants to preserve:
   and converges, so webhook order and redelivery do not matter.
 - Only `grade` and `regrade` events may call the model. `act` events
   (checks, statuses, reviews) reuse the stored verdict.
+- The `/merge-warden grade [model]` comment is a `regrade`, run only for
+  a commenter with write or admin permission and never for a bot. Only
+  it names a model; every other event grades with the default model.
 - Config is read from the default branch, never from the pull request
   head.
 - The check run never concludes `failure`. `success` means eligible,
@@ -86,8 +92,8 @@ Behavioral invariants to preserve:
   `plainText`.
 - The grade comment is posted after the verdict is published and only
   reports it. A failed comment is logged and never changes the verdict,
-  the approval, or the merge. Only a comment by this app's login with the
-  marker is edited.
+  the approval, or the merge. One comment per model: only a comment by
+  this app's login whose first line is that model's marker is edited.
 - A successful check is not CI unless the repo names it in `ci_checks`.
   With no names the app never merges directly. Deploy previews and status
   bots report success on every commit.

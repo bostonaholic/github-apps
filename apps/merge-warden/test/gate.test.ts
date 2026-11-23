@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_MODEL } from "../src/assess.js";
 import { normalizeConfig } from "../src/config.js";
 import { reconcile, type Mode } from "../src/gate.js";
 import type { Assessment } from "../src/grade.js";
@@ -300,6 +301,7 @@ const CONFIG = normalizeConfig({ ci_checks: ["test"] }, "owner");
 interface Overrides {
   mode?: Mode;
   config?: typeof CONFIG;
+  model?: string;
 }
 
 const PARAMS = {
@@ -324,6 +326,7 @@ function start(options: FakeOptions = {}, overrides: Overrides = {}) {
     appId: APP_ID,
     botLogin: BOT,
     anthropic: anthropic as never,
+    ...(overrides.model === undefined ? {} : { model: overrides.model }),
   });
   return { done, calls };
 }
@@ -1008,24 +1011,92 @@ describe("reconcile: disarming native auto-merge", () => {
   });
 });
 
+const OPUS = "claude-opus-5-5";
+const OPUS_MARKER = `<!-- merge-warden: grade model=${OPUS} -->`;
+const DEFAULT_MARKER = `<!-- merge-warden: grade model=${DEFAULT_MODEL} -->`;
+
+describe("reconcile: grading with a named model", () => {
+  // Clean env, so a developer's ANTHROPIC_MODEL cannot change the default.
+  beforeEach(() => vi.stubEnv("ANTHROPIC_MODEL", ""));
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("grades with the default model when none is named", async () => {
+    const calls = await run();
+    expect(calls.assessments[0].model).toBe(DEFAULT_MODEL);
+  });
+
+  it("grades with ANTHROPIC_MODEL when it is set and no model is named", async () => {
+    vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-5-5");
+    const calls = await run();
+    expect(calls.assessments[0].model).toBe("claude-sonnet-5-5");
+  });
+
+  it("grades with the named model and publishes a new verdict over a stored one", async () => {
+    const calls = await run(
+      { ownRuns: [verdict("neutral")] },
+      { mode: "regrade", model: OPUS },
+    );
+    expect(calls.assessments[0].model).toBe(OPUS);
+    expect(calls.checkCreates).toHaveLength(1);
+    expect(conclusionOf(calls)).toBe("success");
+    expect(
+      (calls.checkUpdates[0] as { output: { summary: string } }).output.summary,
+    ).toContain(`Graded with ${OPUS}.`);
+  });
+});
+
 describe("reconcile: grade comment", () => {
+  beforeEach(() => vi.stubEnv("ANTHROPIC_MODEL", ""));
+  afterEach(() => vi.unstubAllEnvs());
+
   it("posts the grade as a comment on the pull request", async () => {
     const calls = await run();
     expect(calls.commentCreates).toEqual([
       expect.objectContaining({
         issue_number: 1,
-        body: expect.stringContaining("<!-- merge-warden: grade -->"),
+        body: expect.stringContaining(`<!-- merge-warden: grade model=${DEFAULT_MODEL} -->`),
       }),
     ]);
     expect(summaryOf(calls)).toContain("**Findings**");
   });
 
-  it("edits its own comment instead of adding another", async () => {
-    const calls = await run({
-      comments: [{ id: 77, user: { login: BOT }, body: "<!-- merge-warden: grade -->\nold" }],
-    });
+  it("edits its own comment for the same model instead of adding another", async () => {
+    const calls = await run(
+      { comments: [{ id: 77, user: { login: BOT }, body: `${OPUS_MARKER}\nold` }] },
+      { mode: "regrade", model: OPUS },
+    );
     expect(calls.commentCreates).toHaveLength(0);
     expect(calls.commentUpdates).toEqual([expect.objectContaining({ comment_id: 77 })]);
+  });
+
+  it("adds a new comment for a model with no comment yet", async () => {
+    const calls = await run(
+      { comments: [{ id: 77, user: { login: BOT }, body: `${DEFAULT_MARKER}\nold` }] },
+      { mode: "regrade", model: OPUS },
+    );
+    expect(calls.commentUpdates).toHaveLength(0);
+    expect(calls.commentCreates).toEqual([
+      expect.objectContaining({ body: expect.stringContaining(OPUS_MARKER) }),
+    ]);
+  });
+
+  it("takes over a comment from before comments were per model with the default model", async () => {
+    const calls = await run({
+      comments: [{ id: 79, user: { login: BOT }, body: "<!-- merge-warden: grade -->\nold" }],
+    });
+    expect(calls.commentCreates).toHaveLength(0);
+    expect(calls.commentUpdates).toEqual([
+      expect.objectContaining({ comment_id: 79, body: expect.stringContaining(DEFAULT_MARKER) }),
+    ]);
+  });
+
+  it("leaves a comment from before comments were per model to the default model", async () => {
+    const calls = await run(
+      { comments: [{ id: 79, user: { login: BOT }, body: "<!-- merge-warden: grade -->\nold" }] },
+      { mode: "regrade", model: OPUS },
+    );
+    expect(calls.commentUpdates).toHaveLength(0);
+    expect(calls.commentCreates).toHaveLength(1);
   });
 
   it("ignores the marker in someone else's comment", async () => {
