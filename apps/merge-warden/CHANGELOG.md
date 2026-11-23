@@ -23,6 +23,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Claude reports a change to CI workflows, CODEOWNERS, branch protection,
   or `.github/merge-warden.yml` as a high finding, replacing the built-in
   high-risk paths.
+- Grades with `claude-haiku-5-5` instead of `claude-sonnet-5-5`. The
+  optional `ANTHROPIC_MODEL` environment variable selects another model
+  without a code change.
 
 ### Removed
 
@@ -31,15 +34,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The `one_way_door_paths` and `high_risk_paths` config keys. They are
   ignored if present. Use the `one-way-door` or `no-auto-merge` label on
   a pull request instead.
-- Grades with `claude-haiku-5-5` instead of `claude-sonnet-5-5`. The
-  optional `ANTHROPIC_MODEL` environment variable selects another model
-  without a code change.
 
 ### Fixed
 
 - Approves without a review body, so the grade comment is the app's only
   comment on the pull request.
-
 - A failed check run no longer blocks the merge after a newer run of the
   same check succeeds. A workflow triggered by `opened`, `labeled` and
   `unlabeled` leaves three runs on one commit; the app now reads only the
