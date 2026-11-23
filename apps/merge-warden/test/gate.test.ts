@@ -294,7 +294,14 @@ function fakeOctokit(options: FakeOptions = {}) {
 }
 
 // A repo whose CI is one check run named "test" (CI_PASSED, CI_RUNNING, CI_FAILED).
-const CONFIG = normalizeConfig({ ci_checks: ["test"] }, "owner");
+const CONFIG = normalizeConfig(
+  {
+    ci_checks: ["test"],
+    one_way_door_paths: ["db/migrations/**"],
+    high_risk_paths: [".github/workflows/**"],
+  },
+  "owner",
+);
 
 interface Overrides {
   mode?: Mode;
@@ -417,7 +424,7 @@ describe("reconcile: grading", () => {
     const calls = await run({ files: MIGRATION });
     expect(conclusionOf(calls)).toBe("neutral");
     expect(titleOf(calls)).toContain("one-way door");
-    expect(summaryOf(calls)).toContain("data change: db/migrations/001_add_users.sql");
+    expect(summaryOf(calls)).toContain("configured one-way path: db/migrations/001_add_users.sql");
   });
 
   it("reads the one-way-door label into the grade", async () => {

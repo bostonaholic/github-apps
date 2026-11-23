@@ -27,7 +27,7 @@ branch, the app:
 | Customer impact | low, medium, high | Claude |
 | Data/security | low, medium, high | Claude |
 | Recovery | low, medium, high | Claude |
-| Door | one-way, two-way | rules, label, or Claude |
+| Door | one-way, two-way | configured paths, label, or Claude |
 | Risk | highest of the three axes, the rule floor, and any finding | computed |
 | Confidence | 0–100 | Claude |
 
@@ -45,19 +45,18 @@ deployed, the prior state cannot be restored by reverting the commit. A
 pull request is a one-way door when any of these is true:
 
 - It carries the `one-way-door` label.
-- A changed path (old or new name) matches a one-way glob.
+- A changed path (old or new name) matches `one_way_door_paths` in the
+  repo config.
 - Claude classifies the diff as one-way.
 
 **One-way-door pull requests are never auto-merged.** No config value,
 label, or grade reverses that. A person merges them.
 
-Built-in one-way globs:
-
-- Data: `**/migrations/**`, `**/migrate/**`, `**/*.sql`, `**/schema.*`
-- Public contracts: `**/openapi*.{yml,yaml,json}`, `**/*.proto`,
-  `**/*.graphql`
-- Security and access: `**/.env*`, `**/secrets/**`, `**/auth/**`,
-  `**/iam/**`, `**/*.tf`
+Claude judges the door from what the diff does, not from file names: a
+migration that runs on deploy, a published release, a changed public
+contract, an external side effect, a committed credential, or applied
+permissions or infrastructure. Editing `.env.example` is two-way. There are no built-in path rules; add
+`one_way_door_paths` for paths your repo always wants a person to merge.
 
 ### When it merges
 
@@ -116,10 +115,12 @@ To use native auto-merge on a repo:
 2. Branch protection on the default branch → **Require status checks to
    pass** → add `merge-warden` and select this app as its source.
 
-### Paths that are high risk but reversible
+### Changes that are high risk but reversible
 
-These do not auto-merge by default, because their risk floor is high:
-`.github/workflows/**`, `.github/merge-warden.yml`, `**/CODEOWNERS`.
+Claude reports a change to what gates a merge (CI workflows, CODEOWNERS,
+branch protection, `.github/merge-warden.yml`) as a high finding, so it
+does not auto-merge. Paths in `high_risk_paths` get a high risk floor
+whatever Claude says.
 
 A diff over 400 changed lines or 20 files has a risk floor of medium.
 
@@ -144,7 +145,8 @@ merge_method: squash # squash | merge | rebase
 # must succeed before a direct merge. Default: none, so no direct merge.
 ci_checks:
   - test
-# Added to the built-in lists. A config cannot remove a built-in glob.
+# Paths that always make a pull request a one-way door or high risk.
+# Claude cannot relax them.
 one_way_door_paths:
   - "db/**"
 high_risk_paths:
@@ -163,8 +165,9 @@ config.
 ## Limits
 
 - Confidence is not a security control. Text in a diff can make a model
-  report high confidence. The controls are the author allowlist, the
-  path rules, and your CI.
+  report high confidence. The controls are the author allowlist, your
+  configured path rules, and your CI. With no `one_way_door_paths` or
+  `high_risk_paths`, the door and the risk come from Claude alone.
 - The author allowlist says who opened the pull request. It says nothing
   about where the content came from.
 - With native auto-merge armed, a `one-way-door` label takes effect when

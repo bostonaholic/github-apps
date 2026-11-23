@@ -14,6 +14,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Claude decides whether a change is a one-way door from what the diff
+  does, not from file names. The built-in path globs are gone: editing
+  `.env.example`, a migration directory, or `auth/` no longer forces a
+  one-way door on its own. Repo `one_way_door_paths` and
+  `high_risk_paths` still apply.
+- Claude reports a change to CI workflows, CODEOWNERS, branch protection,
+  or `.github/merge-warden.yml` as a high finding, replacing the built-in
+  high-risk paths.
 - Grades with `claude-haiku-5-5` instead of `claude-sonnet-5-5`. The
   optional `ANTHROPIC_MODEL` environment variable selects another model
   without a code change.
@@ -22,9 +30,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Approves without a review body, so the grade comment is the app's only
   comment on the pull request.
-- No longer marks a change to an env template (`.env.example`,
-  `.env.sample`, `.env.template`, `.env.dist`) as a one-way door. Real
-  `.env` files still are.
 
 ## [0.1.0] - 2026-11-22
 

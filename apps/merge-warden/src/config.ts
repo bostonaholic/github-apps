@@ -8,8 +8,8 @@ export interface WardenConfig {
   // Lowercased logins whose PRs may be auto-merged. Nobody else's are.
   authors: string[];
   merge_method: MergeMethod;
-  // Globs added to the built-in lists in signals.ts. Config extends those
-  // lists; it cannot remove a built-in entry.
+  // Globs the repo marks as one-way doors or high risk. They can only make
+  // the model's grade stricter.
   one_way_door_paths: string[];
   high_risk_paths: string[];
   // Names of the check runs (or commit-status contexts) that are this

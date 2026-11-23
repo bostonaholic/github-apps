@@ -35,81 +35,66 @@ describe("readSignals: door", () => {
   });
 
   it.each([
-    ["db/migrations/20260101_add_users.rb", "data change"],
-    ["migrations/001.py", "data change"],
-    ["db/migrate/001_init.rb", "data change"],
-    ["scripts/backfill.sql", "data change"],
-    ["db/schema.rb", "data change"],
-    ["prisma/schema.prisma", "data change"],
-    ["api/openapi.yaml", "public contract"],
-    ["openapi-v2.json", "public contract"],
-    ["proto/events.proto", "public contract"],
-    ["schema/api.graphql", "public contract"],
-    [".env", "security and access"],
-    ["config/.env.production", "security and access"],
-    ["deploy/secrets/prod.yml", "security and access"],
-    ["src/auth/session.ts", "security and access"],
-    ["infra/iam/roles.json", "security and access"],
-    ["infra/main.tf", "security and access"],
-  ])("marks %s a one-way door (%s)", (path, category) => {
+    "db/migrations/001_add_users.sql",
+    "api/openapi.yaml",
+    ".env",
+    ".env.example",
+    "src/auth/session.ts",
+    "infra/main.tf",
+  ])("leaves %s to the model when no path is configured", (path) => {
     const result = signals([file(path)]);
-    expect(result.door).toBe("one-way");
-    expect(result.doorReasons).toContain(`${category}: ${path}`);
+    expect(result.door).toBe("two-way");
+    expect(result.doorReasons).toEqual([]);
   });
 
-  it.each([".env.example", "apps/web/.env.sample", ".env.template", "config/.env.dist"])(
-    "keeps the env template %s a two-way door",
-    (path) => {
-      const result = signals([file(path)]);
-      expect(result.door).toBe("two-way");
-      expect(result.doorReasons).toEqual([]);
-    },
-  );
+  const ONE_WAY_RULES = { one_way_door_paths: ["billing/**", "**/*.sql"], high_risk_paths: [] };
+
+  it("marks a configured one-way path", () => {
+    expect(signals([file("billing/invoice.ts")], ONE_WAY_RULES).doorReasons).toEqual([
+      "configured one-way path: billing/invoice.ts",
+    ]);
+  });
 
   it("matches a path inside a dot-directory", () => {
-    expect(signals([file(".deploy/secrets/key.yml")]).door).toBe("one-way");
+    const rules = { one_way_door_paths: ["**/secrets/**"], high_risk_paths: [] };
+    expect(signals([file(".deploy/secrets/key.yml")], rules).door).toBe("one-way");
   });
 
   it("matches case-insensitively", () => {
-    expect(signals([file("DB/Migrations/001.SQL")]).door).toBe("one-way");
+    expect(signals([file("DB/Migrations/001.SQL")], ONE_WAY_RULES).door).toBe("one-way");
   });
 
   it("matches the previous name of a renamed file", () => {
-    const result = signals([
-      file("archive/old_change.txt", {
-        status: "renamed",
-        previous_filename: "db/migrations/001_change.rb",
-        changes: 0,
-        patch: undefined,
-      }),
-    ]);
+    const result = signals(
+      [
+        file("archive/old_change.txt", {
+          status: "renamed",
+          previous_filename: "billing/old_change.rb",
+          changes: 0,
+          patch: undefined,
+        }),
+      ],
+      ONE_WAY_RULES,
+    );
     expect(result.door).toBe("one-way");
-    expect(result.doorReasons).toEqual(["data change: db/migrations/001_change.rb"]);
-  });
-
-  it("adds configured globs without replacing the built-in ones", () => {
-    const rules = { one_way_door_paths: ["billing/**"], high_risk_paths: [] };
-    expect(signals([file("billing/invoice.ts")], rules).doorReasons).toEqual([
-      "configured one-way path: billing/invoice.ts",
-    ]);
-    expect(signals([file("db/migrations/1.sql")], rules).door).toBe("one-way");
+    expect(result.doorReasons).toEqual(["configured one-way path: billing/old_change.rb"]);
   });
 });
 
 describe("readSignals: risk floor", () => {
-  it.each([".github/workflows/ci.yml", ".github/merge-warden.yml", ".github/CODEOWNERS", "CODEOWNERS"])(
-    "floors %s at high while leaving the door two-way",
-    (path) => {
-      const result = signals([file(path)]);
-      expect(result.riskFloor).toBe("high");
-      expect(result.door).toBe("two-way");
-      expect(result.floorReasons).toEqual([`high-risk path: ${path}`]);
-    },
-  );
+  const HIGH_RISK_RULES = { one_way_door_paths: [], high_risk_paths: [".github/workflows/**"] };
 
-  it("adds configured high-risk globs", () => {
-    const rules = { one_way_door_paths: [], high_risk_paths: ["infra/**"] };
-    expect(signals([file("infra/deploy.sh")], rules).riskFloor).toBe("high");
+  it("leaves workflow and CODEOWNERS changes to the model when no path is configured", () => {
+    const result = signals([file(".github/workflows/ci.yml"), file("CODEOWNERS")]);
+    expect(result.riskFloor).toBe("low");
+    expect(result.floorReasons).toEqual([]);
+  });
+
+  it("floors a configured high-risk path at high while leaving the door two-way", () => {
+    const result = signals([file(".github/workflows/ci.yml")], HIGH_RISK_RULES);
+    expect(result.riskFloor).toBe("high");
+    expect(result.door).toBe("two-way");
+    expect(result.floorReasons).toEqual(["high-risk path: .github/workflows/ci.yml"]);
   });
 
   it("floors a diff over 400 changed lines at medium", () => {
@@ -125,7 +110,7 @@ describe("readSignals: risk floor", () => {
   });
 
   it("keeps high when a large diff also touches a high-risk path", () => {
-    const result = signals([file(".github/workflows/ci.yml", { changes: 900 })]);
+    const result = signals([file(".github/workflows/ci.yml", { changes: 900 })], HIGH_RISK_RULES);
     expect(result.riskFloor).toBe("high");
   });
 });
@@ -181,7 +166,8 @@ describe("readSignals: gradeable", () => {
   });
 
   it("still reports the door for a diff it cannot grade", () => {
-    const result = signals([file("db/migrations/dump.bin", { patch: undefined })]);
+    const rules = { one_way_door_paths: ["db/**"], high_risk_paths: [] };
+    const result = signals([file("db/migrations/dump.bin", { patch: undefined })], rules);
     expect(result.door).toBe("one-way");
     expect(result.ungradeable).not.toBeNull();
   });

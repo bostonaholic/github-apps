@@ -1,6 +1,8 @@
 // Pure: deterministic risk signals read from the changed files alone.
-// These set a floor that the model's assessment can raise but never
-// lower, and they decide on their own whether a diff is a one-way door.
+// Only the repo's own configured paths and the diff size count here; the
+// model judges what the diff does. These set a floor that the model's
+// assessment can raise but never lower, and a configured one-way path
+// makes the diff a one-way door on its own.
 
 import picomatch from "picomatch";
 import type { WardenConfig } from "./config.js";
@@ -56,30 +58,6 @@ const MEDIUM_CHANGED_FILES = 20;
 // dot: match dotfiles and dot-directories. nocase: SCHEMA.SQL is schema.sql.
 const GLOB_OPTIONS = { dot: true, nocase: true };
 
-const ONE_WAY_GLOBS: readonly { category: string; globs: string[]; ignore?: string[] }[] = [
-  {
-    category: "data change",
-    globs: ["**/migrations/**", "**/migrate/**", "**/*.sql", "**/schema.*"],
-  },
-  {
-    category: "public contract",
-    globs: ["**/openapi*.{yml,yaml,json}", "**/*.proto", "**/*.graphql"],
-  },
-  {
-    category: "security and access",
-    globs: ["**/.env*", "**/secrets/**", "**/auth/**", "**/iam/**", "**/*.tf"],
-    // Committed templates hold placeholders, not secrets; a revert undoes them.
-    ignore: ["**/.env.{example,sample,template,dist}"],
-  },
-];
-
-// Reversible, but they change what gates a merge.
-const HIGH_RISK_GLOBS = [
-  ".github/workflows/**",
-  ".github/merge-warden.yml",
-  "**/CODEOWNERS",
-];
-
 type PathRules = Pick<WardenConfig, "one_way_door_paths" | "high_risk_paths">;
 
 // `expectedFiles` is the pull request's own changed-file count. A list of
@@ -89,17 +67,8 @@ export function readSignals(
   rules: PathRules,
   expectedFiles: number,
 ): Signals {
-  const oneWay = [
-    ...ONE_WAY_GLOBS,
-    { category: "configured one-way path", globs: rules.one_way_door_paths },
-  ].map(({ category, globs, ignore }: { category: string; globs: string[]; ignore?: string[] }) => ({
-    category,
-    matches: picomatch(globs, { ...GLOB_OPTIONS, ignore }),
-  }));
-  const highRisk = picomatch(
-    [...HIGH_RISK_GLOBS, ...rules.high_risk_paths],
-    GLOB_OPTIONS,
-  );
+  const oneWay = picomatch(rules.one_way_door_paths, GLOB_OPTIONS);
+  const highRisk = picomatch(rules.high_risk_paths, GLOB_OPTIONS);
 
   const doorReasons = new Set<string>();
   const floorReasons = new Set<string>();
@@ -110,9 +79,7 @@ export function readSignals(
       ? [file.filename, file.previous_filename]
       : [file.filename];
     for (const path of paths) {
-      for (const { category, matches } of oneWay) {
-        if (matches(path)) doorReasons.add(`${category}: ${path}`);
-      }
+      if (oneWay(path)) doorReasons.add(`configured one-way path: ${path}`);
       if (highRisk(path)) {
         riskFloor = "high";
         floorReasons.add(`high-risk path: ${path}`);
