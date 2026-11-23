@@ -21,9 +21,10 @@ preconditions, one-time sandbox setup, and failure triage.
 | 4 | Notes file opened as draft, labeled `no-auto-merge`, marked ready | check `success` (the label does not change the grade); CI green; open, not approved |
 | 5 | Notes file opened as draft with an `[e2e-fail-ci]` commit message (CI red), marked ready, then a second notes commit | check `success`; open and not approved while red; the fixing commit is graded `success`, the grade comment names it, and it is approved and merged |
 | 6 | Notes file on a PR whose base is not `main` | out of scope: no `merge-warden` check run; open, not approved |
+| 7 | Notes file opened as draft, CI green, labeled `e2e-fail-ci` (CI red on the same commit), marked ready, then unlabeled (CI green again) | check `success`; open and not approved while red; merged after the label is removed, with no new commit |
 
-Every grade in steps 1–5 is a live Claude call (the model sees the diff).
-Steps 1, 4, and 5 depend on the model grading a one-line notes file as low
+Every grade in steps 1–5 and 7 is a live Claude call (the model sees the diff).
+Steps 1, 4, 5, and 7 depend on the model grading a one-line notes file as low
 risk with confidence ≥ 90.
 
 ## Modes
@@ -57,7 +58,8 @@ risk with confidence ≥ 90.
    (<https://github.com/settings/installations>).
 3. **Sandbox prepared** (one-time, see below): the `e2e-ci` workflow and
    `.github/merge-warden.yml` exist on main. The script creates the
-   `one-way-door` and `no-auto-merge` labels itself if missing. Keep main
+   `one-way-door`, `no-auto-merge`, and `e2e-fail-ci` labels itself if
+   missing. Keep main
    unprotected — the e2e covers the direct-merge path, not native
    auto-merge (which needs branch protection requiring the
    `merge-warden` check pinned to the app).
@@ -69,7 +71,9 @@ gh repo create bostonaholic/merge-warden-sandbox --private --add-readme
 
 cat > /tmp/e2e-ci.yml <<'YAML'
 name: e2e-ci
-on: [pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -78,6 +82,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - run: "! git log -1 --format=%B | grep -qF '[e2e-fail-ci]'"
+      - if: contains(github.event.pull_request.labels.*.name, 'e2e-fail-ci')
+        run: exit 1
 YAML
 
 gh api -X PUT repos/bostonaholic/merge-warden-sandbox/contents/.github/workflows/e2e-ci.yml \
@@ -89,13 +95,13 @@ gh api -X PUT repos/bostonaholic/merge-warden-sandbox/contents/.github/merge-war
   -f content="$(printf 'merge_method: squash\nci_checks:\n  - check\n' | base64)"
 ```
 
-The job fails when the head commit's message contains `[e2e-fail-ci]`.
-The model sees only the diff, so step 5 grades the same plain notes file
-as step 1: a fail-marker file in the diff dropped the model's confidence
-under 90. Do not trigger red CI with a label either: each label event
-starts a new workflow run in its own check suite, and `checksRollup`
-counts the superseded failed run, so the PR stays red after a green
-re-run. `ci_checks: [check]` names the
+The job fails when the head commit's message contains `[e2e-fail-ci]`
+(step 5) or the PR carries the `e2e-fail-ci` label (step 7). The model
+sees only the diff, so both grade the same plain notes file as step 1: a
+fail-marker file in the diff dropped the model's confidence under 90.
+Each label event starts a new workflow run in its own check suite on the
+same commit; step 7 asserts that `checksRollup` reads only the newest.
+`ci_checks: [check]` names the
 `e2e-ci` job; without it the app never
 merges directly and steps 1 and 5 time out. Then set the sandbox repo's
 watch status to **Ignore** (repo page → Watch → Ignore): e2e churn — PRs,
@@ -113,7 +119,7 @@ The script prints one `== step` header per row of the table and ends with
 `E2E PASS`. Waits poll for up to 240 s (`E2E_POLL_TIMEOUT`) because
 Actions runner queueing dominates; negative assertions wait 20 s
 (`E2E_GRACE`). The sandbox repo can be overridden with `E2E_REPO`; the script refuses a name that does not end in `-sandbox`, because it merges into the target's main. Expect
-a full run to take 5–10 minutes and about seven model calls.
+a full run to take 6–12 minutes and about eight model calls.
 
 Cleanup closes the still-open PRs and deletes their branches (including
 step 6's base branch) on pass and fail; merged PRs and the files they
@@ -158,6 +164,11 @@ added stay in the sandbox history.
 - **Step 5 merge timeout after the fixing commit**: read the new head's
   check title (a model grade below 90 re-runs once), then the logs for
   "waiting for ci_checks to succeed" or "checks failing".
+- **Step 7 merge timeout after the label is removed**: the logs say
+  "checks failing" — `checksRollup` counted the superseded failed run
+  (`latestRuns` in `src/checks.ts`). Hosted mode runs the deployed code,
+  so this step fails there until the fix is deployed.
+- **Step 7 approved or merged while labeled**: `checksRollup` regressed.
 - **Step 6 got a check run**: `scopeBlock` stopped testing the base
   branch.
 - Do not retry a failed run more than once before diagnosing: apart from

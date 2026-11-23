@@ -31,6 +31,30 @@ interface RefParams {
   ref: string;
 }
 
+interface CheckRun {
+  id: number | bigint;
+  name: string;
+  app?: { id: number } | null;
+}
+
+// One commit can carry several runs of the same check: a workflow that
+// triggers on opened, labeled and unlabeled runs three times, each in its
+// own check suite, and listForRef's `filter: latest` keeps them all. Only
+// the newest run of each check says where it stands now. Newest is the
+// highest id: GitHub assigns ids in creation order and every run has one,
+// while started_at can tie and a re-run's queued run may lack it. Checks
+// are keyed by app and name, so another app's run with the same name never
+// hides a failure.
+export function latestRuns<Run extends CheckRun>(runs: readonly Run[]): Run[] {
+  const newest = new Map<string, Run>();
+  for (const run of runs) {
+    const key = `${run.app?.id ?? ""}/${run.name}`;
+    const seen = newest.get(key);
+    if (!seen || run.id > seen.id) newest.set(key, run);
+  }
+  return [...newest.values()];
+}
+
 async function listCombinedStatuses(octokit: Octokit, { owner, repo, ref }: RefParams) {
   const statuses = [];
   for (let page = 1; ; page++) {
@@ -65,7 +89,7 @@ export async function checksRollup(
 
   let pending = false;
   const succeeded = new Set<string>();
-  for (const run of runs) {
+  for (const run of latestRuns(runs)) {
     if (run.app?.id === appId) continue;
     if (run.status !== "completed") {
       pending = true;

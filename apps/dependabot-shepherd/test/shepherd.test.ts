@@ -5,7 +5,14 @@ import { reconcile } from "../src/shepherd.js";
 interface FakeOptions {
   pr?: Record<string, unknown>;
   reviews?: Record<string, unknown>[];
-  checkRuns?: { name?: string; status: string; conclusion: string | null }[];
+  // id: GitHub assigns ids in creation order. Default: position in the list.
+  checkRuns?: {
+    id?: number;
+    name?: string;
+    status: string;
+    conclusion: string | null;
+    app?: { id: number };
+  }[];
   combinedStatus?: {
     state: string;
     total_count: number;
@@ -99,7 +106,9 @@ function fakeOctokit(options: FakeOptions = {}) {
     paginate: async (route: unknown) => {
       calls.paginated.push(route as string);
       if (route === "listReviews") return [...reviews];
-      if (route === "listForRef") return options.checkRuns ?? [];
+      if (route === "listForRef") {
+        return (options.checkRuns ?? []).map((run, i) => ({ id: i + 1, ...run }));
+      }
       throw new Error(`unexpected paginate route: ${String(route)}`);
     },
   };
@@ -190,6 +199,44 @@ describe("reconcile", () => {
     expect(calls.merges).toEqual([
       expect.objectContaining({ merge_method: "squash", sha: "abc123" }),
     ]);
+  });
+
+  describe("several runs of the same check", () => {
+    // One commit, one workflow, three triggers (opened, labeled,
+    // unlabeled): GitHub keeps every run, each in its own check suite.
+    const failed = { name: "ci", status: "completed", conclusion: "failure" };
+    const passed = { name: "ci", status: "completed", conclusion: "success" };
+
+    it("merges when a failed run was superseded by a newer success", async () => {
+      const calls = await run({
+        checkRuns: [
+          { ...failed, id: 1 },
+          { ...passed, id: 2 },
+          { ...passed, id: 3 },
+        ],
+      });
+      expect(calls.merges).toHaveLength(1);
+    });
+
+    it("picks the newest by id, not by list order", async () => {
+      const calls = await run({
+        checkRuns: [
+          { ...failed, id: 2 },
+          { ...passed, id: 1 },
+        ],
+      });
+      expect(calls.merges).toHaveLength(0);
+    });
+
+    it("keeps another app's failure with the same name", async () => {
+      const calls = await run({
+        checkRuns: [
+          { ...failed, id: 1, app: { id: 1 } },
+          { ...passed, id: 2, app: { id: 2 } },
+        ],
+      });
+      expect(calls.merges).toHaveLength(0);
+    });
   });
 
   it("treats skipped checks as green", async () => {
