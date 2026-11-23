@@ -18,6 +18,11 @@ App specifics — commands, architecture, testing — live in each app's own
 documentation (`apps/<app>/README.md` and `apps/<app>/AGENTS.md`). Read those
 before working on an app.
 
+`docs/vision.md` is the product vision for the suite: one app per human
+decision between an agent opening a change and that change running in
+production, plus the planned apps. Read it before proposing or
+scaffolding a new app, and keep new apps consistent with its principles.
+
 New apps are scaffolded by the `create-github-app` skill from its
 bundled template (`.claude/skills/create-github-app/resources/template/`).
 
