@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { commentFooter } from "../src/build.js";
-import { COMMENT_MARKER, checkOutput, commentBody, plainText } from "../src/format.js";
+import { checkOutput, commentBody, commentMarker, plainText } from "../src/format.js";
 import type { Assessment, Grade } from "../src/grade.js";
 
 const ASSESSMENT: Assessment = {
@@ -33,7 +33,7 @@ const MODEL = "claude-haiku-5-5";
 
 // The check title and the comment body: what a person reads.
 function rendered(g: Grade, v: { eligible: boolean; reason: string }) {
-  return { title: checkOutput(g, v).title, summary: commentBody(g, v, SHA, MODEL) };
+  return { title: checkOutput(g, v, MODEL).title, summary: commentBody(g, v, SHA, MODEL) };
 }
 
 describe("plainText", () => {
@@ -66,9 +66,10 @@ describe("plainText", () => {
 });
 
 describe("checkOutput summary", () => {
-  it("gives the reason and points at the comment, without the findings", () => {
-    const { summary } = checkOutput(grade(), BLOCKED);
+  it("gives the reason and model and points at the comment, without the findings", () => {
+    const { summary } = checkOutput(grade(), BLOCKED, MODEL);
     expect(summary).toContain("**Why:** risk is medium");
+    expect(summary).toContain(`Graded with ${MODEL}.`);
     expect(summary).toContain("merge-warden comment on the pull request");
     expect(summary).not.toContain("| Risk |");
     expect(summary).not.toContain("**Findings**");
@@ -76,11 +77,12 @@ describe("checkOutput summary", () => {
 });
 
 describe("commentBody frame", () => {
-  it("starts with the marker and names the graded commit", () => {
-    const body = commentBody(grade(), BLOCKED, SHA, MODEL);
-    expect(body.startsWith(COMMENT_MARKER)).toBe(true);
+  it("starts with the model's marker and names the graded commit and model", () => {
+    const body = commentBody(grade(), BLOCKED, SHA, "claude-opus-5-5");
+    expect(body.split("\n")[0]).toBe("<!-- merge-warden: grade model=claude-opus-5-5 -->");
+    expect(body.split("\n")[0]).toBe(commentMarker("claude-opus-5-5"));
     expect(body).toContain("### ⚠️ merge-warden: needs a person");
-    expect(body).toContain("Graded commit abc1234.");
+    expect(body).toContain("Graded commit abc1234 with claude-opus-5-5.");
   });
 
   it("ends with the build footer, below a divider, naming the model that graded the diff", () => {

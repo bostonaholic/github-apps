@@ -16,7 +16,13 @@ import { assess, modelFromEnv } from "./assess.js";
 import { armAutoMerge, disarmAutoMerge, requiresOwnCheck } from "./automerge.js";
 import { checksRollup } from "./checks.js";
 import type { WardenConfig } from "./config.js";
-import { CHECK_NAME, COMMENT_MARKER, checkOutput, commentBody } from "./format.js";
+import {
+  CHECK_NAME,
+  LEGACY_COMMENT_MARKER,
+  checkOutput,
+  commentBody,
+  commentMarker,
+} from "./format.js";
 import { buildGrade, type Grade } from "./grade.js";
 import {
   conclusionFor,
@@ -63,6 +69,9 @@ export interface ReconcileParams {
   // Called only when a diff is about to be graded, so a missing API key
   // fails that grade and nothing else.
   anthropic: () => Anthropic;
+  // The model that grades. Unset: the default (ANTHROPIC_MODEL or
+  // DEFAULT_MODEL). Set by the PR comment command.
+  model?: string;
   log?: Logger;
 }
 
@@ -211,17 +220,21 @@ export async function reconcile(
   };
 
   if (mustGrade) {
+    const defaultModel = modelFromEnv();
+    const model = params.model ?? defaultModel;
     const verdict = await gradeHead(octokit, {
       owner,
       repo,
       pr,
       config,
       anthropic: params.anthropic,
+      model,
+      isDefaultModel: model === defaultModel,
       botLogin: params.botLogin,
       log,
       beforePublish: approveBeforeVerdict,
     });
-    log.info(`${tag}: graded ${head} — ${verdict.reason}`);
+    log.info(`${tag}: graded ${head} with ${model} — ${verdict.reason}`);
     conclusion = conclusionFor(verdict);
     if (!verdict.eligible) return;
 
@@ -338,12 +351,14 @@ async function readLive(
 
 async function gradeHead(
   octokit: Octokit,
-  { owner, repo, pr, config, anthropic, botLogin, log, beforePublish }: {
+  { owner, repo, pr, config, anthropic, model, isDefaultModel, botLogin, log, beforePublish }: {
     owner: string;
     repo: string;
     pr: PullRequest;
     config: WardenConfig;
     anthropic: () => Anthropic;
+    model: string;
+    isDefaultModel: boolean;
     botLogin: string;
     log: Logger;
     // Runs for an eligible verdict, while the claim is still in progress.
@@ -371,7 +386,7 @@ async function gradeHead(
     const signals = readSignals(files, pr.changed_files);
     // The model sees the whole diff or none of it.
     const assessment =
-      signals.ungradeable === null ? await assess(anthropic(), files, log) : null;
+      signals.ungradeable === null ? await assess(anthropic(), files, log, model) : null;
     grade = buildGrade(
       signals,
       assessment,
@@ -385,7 +400,7 @@ async function gradeHead(
       check_run_id: Number(claim.id),
       status: "completed",
       conclusion: conclusionFor(verdict),
-      output: checkOutput(grade, verdict),
+      output: checkOutput(grade, verdict, model),
     });
   } catch (error) {
     // Release the claim so the commit does not sit "in progress". Neutral,
@@ -412,7 +427,12 @@ async function gradeHead(
       repo,
       issue_number: pr.number,
       botLogin,
-      body: commentBody(grade, verdict, pr.head.sha, modelFromEnv()),
+      // A grade with the default model also takes over a comment written
+      // before comments were per model.
+      markers: isDefaultModel
+        ? [commentMarker(model), LEGACY_COMMENT_MARKER]
+        : [commentMarker(model)],
+      body: commentBody(grade, verdict, pr.head.sha, model),
     });
   } catch (error) {
     log.warn(`${owner}/${repo}#${pr.number}: grade comment failed — ${errorMessage(error)}`);
@@ -420,15 +440,18 @@ async function gradeHead(
   return verdict;
 }
 
-// One grade comment per pull request: edit the app's own, else create it.
-// Only a comment this app wrote counts, so anyone can quote the marker.
+// One grade comment per model per pull request: edit the app's own, else
+// create it. Only a comment this app wrote counts, so anyone can quote the
+// marker. The marker is matched as the whole first line, so one model's
+// marker never matches another's.
 async function upsertComment(
   octokit: Octokit,
-  { owner, repo, issue_number, botLogin, body }: {
+  { owner, repo, issue_number, botLogin, markers, body }: {
     owner: string;
     repo: string;
     issue_number: number;
     botLogin: string;
+    markers: string[];
     body: string;
   },
 ): Promise<void> {
@@ -440,7 +463,8 @@ async function upsertComment(
   });
   const own = comments.find(
     (comment) =>
-      comment.user?.login === botLogin && (comment.body ?? "").includes(COMMENT_MARKER),
+      comment.user?.login === botLogin &&
+      markers.includes((comment.body ?? "").split("\n", 1)[0].trim()),
   );
   if (own) {
     if (own.body === body) return;

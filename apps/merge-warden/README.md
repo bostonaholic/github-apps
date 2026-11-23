@@ -16,7 +16,8 @@ branch, the app:
 2. Sends the diff (not the title or description) to Claude for a grade.
 3. Writes a `merge-warden` check run on the head commit with the verdict,
    and posts the grade and findings as one comment on the pull request.
-   Each new grade edits that comment instead of adding another.
+   Each new grade with the same model edits that comment instead of
+   adding another.
 4. If the pull request is eligible, approves it and merges it once CI is
    green.
 
@@ -115,6 +116,28 @@ To use native auto-merge on a repo:
 2. Branch protection on the default branch → **Require status checks to
    pass** → add `merge-warden` and select this app as its source.
 
+### Grading again with another model
+
+Comment a line of its own on the pull request:
+
+```text
+/merge-warden grade          # the default model
+/merge-warden grade opus     # haiku, sonnet, opus, or fable
+/merge-warden grade claude-opus-5-5
+```
+
+The app grades the head commit again with that model, like **Re-run**
+on the check. The newest grade is the verdict: a low-risk two-way-door
+grade from the named model can approve and merge the pull request, and
+the `one-way-door` and `no-auto-merge` labels still apply. Each model
+gets its own comment; grading again with a model edits its comment. A
+new commit is graded with the default model only, so other models'
+comments keep naming the commit they graded.
+
+Only people with write access can run the command; anyone else's
+comment, and any bot's, is ignored. An unknown model name gets a reply
+listing the accepted names. Larger models cost more per grade.
+
 ### Changes that are high risk but reversible
 
 Claude reports a change to what gates a merge (CI workflows, CODEOWNERS,
@@ -190,6 +213,8 @@ Required permissions and events (declared in `app.yml`):
 - **Pull requests: write** — read pull requests and reviews, approve,
   enable and disable auto-merge, and post the grade comment (issue
   comments on a pull request need no Issues permission)
+- **Issues: read** — the `issue_comment` webhook, for the
+  `/merge-warden grade` command
 - **Contents: write** — merging creates a commit; also reading the diff
   and the repo config
 - **Checks: write** — the app's own verdict check run, other apps' check
@@ -197,7 +222,7 @@ Required permissions and events (declared in `app.yml`):
 - **Commit statuses: read** — combined commit status and the `status`
   webhook (legacy CI)
 - **Events:** `pull_request`, `pull_request_review`, `check_suite`,
-  `check_run`, `status`
+  `check_run`, `status`, `issue_comment`
 
 ### 2. Install it on repos
 

@@ -84,10 +84,11 @@ export async function assess(
   client: Anthropic,
   files: ChangedFile[],
   log: Logger,
+  model: string,
 ): Promise<Assessment | null> {
   try {
     const response = await client.messages.parse({
-      model: modelFromEnv(),
+      model,
       max_tokens: 16000,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: renderDiff(files) }],

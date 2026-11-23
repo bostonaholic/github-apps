@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Comment `/merge-warden grade [model]` on a pull request to grade the
+  head commit again with the default model or a named one (`haiku`,
+  `sonnet`, `opus`, `fable`, or a full `claude-*` model ID). The newest
+  grade is the verdict. Each model posts its own comment, and grading
+  again with a model edits that model's comment. Requires write access
+  on the repo; the app now asks for the Issues read permission and the
+  `issue_comment` event.
 - The grade comment footer names the model that graded the diff, e.g.
   `merge-warden vX.Y.Z · cb6ab00 · graded by claude-haiku-5-5`. A comment
   for a diff the model did not grade names no model.

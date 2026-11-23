@@ -9,9 +9,14 @@ import type { Verdict } from "./policy.js";
 import type { Door, Level } from "./signals.js";
 
 export const CHECK_NAME = "merge-warden";
-// Marks the app's one grade comment on a pull request, so each grade
-// edits it instead of adding another.
-export const COMMENT_MARKER = "<!-- merge-warden: grade -->";
+// Marks the app's grade comment for one model, so a grade with that model
+// edits it and a grade with another model adds its own.
+export function commentMarker(model: string): string {
+  return `<!-- merge-warden: grade model=${model} -->`;
+}
+// The marker before comments were per model. Such a comment belongs to
+// the default model.
+export const LEGACY_COMMENT_MARKER = "<!-- merge-warden: grade -->";
 
 export interface CheckOutput {
   title: string;
@@ -53,7 +58,7 @@ export function plainText(text: string, max = 300): string {
   return flat;
 }
 
-export function checkOutput(grade: Grade, verdict: Verdict): CheckOutput {
+export function checkOutput(grade: Grade, verdict: Verdict, model: string): CheckOutput {
   return {
     title: verdict.eligible
       ? "Eligible for auto-merge"
@@ -61,7 +66,7 @@ export function checkOutput(grade: Grade, verdict: Verdict): CheckOutput {
     summary: [
       `**Why:** ${plainText(verdict.reason, 200)}`,
       "",
-      "The grade and findings are in the merge-warden comment on the pull request.",
+      `Graded with ${model}. The grade and findings are in the merge-warden comment on the pull request.`,
     ].join("\n"),
   };
 }
@@ -78,12 +83,12 @@ export function commentBody(
     ? "### ✅ merge-warden: eligible for auto-merge"
     : "### ⚠️ merge-warden: needs a person";
   return [
-    COMMENT_MARKER,
+    commentMarker(model),
     heading,
     "",
     ...report(grade, verdict),
     "",
-    `<sub>Graded commit ${sha.slice(0, 7)}. A new commit is graded again and this comment updates.</sub>`,
+    `<sub>Graded commit ${sha.slice(0, 7)} with ${model}. A new commit is graded again with the default model. Comment <code>/merge-warden grade [model]</code> to grade again with this one or another.</sub>`,
     "",
     "---",
     "",

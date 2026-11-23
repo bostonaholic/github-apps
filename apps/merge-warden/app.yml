@@ -14,6 +14,7 @@ default_events:
   - check_suite
   - check_run
   - status
+  - issue_comment
 
 default_permissions:
   # Read PRs and reviews, approve, enable and disable auto-merge, and
@@ -26,5 +27,7 @@ default_permissions:
   checks: write
   # Combined commit status and the status webhook (legacy CI).
   statuses: read
+  # The issue_comment webhook, for the `/merge-warden grade` command.
+  issues: read
 
 public: false
