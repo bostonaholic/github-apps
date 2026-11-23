@@ -100,6 +100,8 @@ Each app keeps its own `CHANGELOG.md` in
 under `[Unreleased]` for any user-visible change (`feat`, `fix`, behavior
 changes); internal-only changes (`chore`, `test`, `refactor`, `docs`, `ci`)
 get no entry. Only cut a versioned section when explicitly releasing.
+Example output in an entry uses `vX.Y.Z`, never a concrete version: the
+entry ships under the next version.
 
 ## Tags and releases
 
