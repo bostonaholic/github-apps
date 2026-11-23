@@ -12,7 +12,7 @@ npx vitest run test/config.test.ts # single test file
 npm run typecheck                  # tsc --noEmit
 npm run build                      # tsc → lib/
 npm start                          # probot run ./lib/index.js
-npm run test:e2e                   # stub — fails until e2e.sh is implemented
+npm run test:e2e                   # live e2e against the sandbox (see the e2e-merge-warden skill)
 ```
 
 ## Architecture

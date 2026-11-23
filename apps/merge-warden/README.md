@@ -278,4 +278,6 @@ PRs, comments, and any deliberately failing e2e workflow runs — sends
 no notifications.
 
 Source layout is listed in [`AGENTS.md`](./AGENTS.md). `npm run test:e2e`
-is a stub until the app is registered and a sandbox repo exists.
+runs the live end-to-end check against `bostonaholic/merge-warden-sandbox`
+(`E2E_HOSTED=1` for the deployed app); setup and triage are in the
+`e2e-merge-warden` skill.
