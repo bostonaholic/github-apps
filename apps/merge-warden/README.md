@@ -126,7 +126,8 @@ Comment a line of its own on the pull request:
 /merge-warden grade claude-opus-5-5
 ```
 
-The app grades the head commit again with that model, like **Re-run**
+The app reacts 👀 to the comment when it accepts the command, then
+grades the head commit again with that model, like **Re-run**
 on the check. The newest grade is the verdict: a low-risk two-way-door
 grade from the named model can approve and merge the pull request, and
 the `one-way-door` and `no-auto-merge` labels still apply. Each model

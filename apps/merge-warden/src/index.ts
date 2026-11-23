@@ -176,6 +176,11 @@ export default (app: Probot) => {
       );
       return;
     }
+    await context.octokit.rest.reactions
+      .createForIssueComment(context.repo({ comment_id: comment.id, content: "eyes" }))
+      .catch((error: unknown) =>
+        context.log.warn({ err: error }, `${issue.number}: could not react to grade command`),
+      );
     await run(context, issue.number, "regrade", command.model ?? undefined);
   });
 };
