@@ -1,0 +1,29 @@
+# GitHub App manifest defaults, used by Probot's setup flow (`npm start`
+# with no APP_ID configured) to register the app.
+# App names are globally unique on GitHub; registrations from this repo
+# take the -bostonaholic suffix (see root AGENTS.md).
+name: fix-forward-bostonaholic
+url: https://github.com/bostonaholic/github-apps
+description: >-
+  A GitHub App that asks a coding agent to fix forward when CI on the default branch goes red.
+
+default_events:
+  - check_suite
+  - status
+
+default_permissions:
+  # Open, append to, and close the main-broken issue; create its label;
+  # post the comment that triggers the agent.
+  issues: write
+  # Re-run failed jobs once, and read workflow runs, jobs, and job logs.
+  actions: write
+  # Check runs on default-branch commits, and the check_suite webhook.
+  checks: read
+  # Combined commit status and the status webhook (legacy CI).
+  statuses: read
+  # Default-branch commit history and the repo config file.
+  contents: read
+  # The pull request merged as a red commit (the culprit).
+  pull_requests: read
+
+public: false
