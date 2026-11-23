@@ -68,6 +68,8 @@ export function buildStickyBody(
 
 Nothing outstanding — the \`${STATUS_CONTEXT}\` status is green.
 
+---
+
 ${BUILD_FOOTER}`;
   }
 
@@ -86,6 +88,8 @@ ${items}
 <sub>Checkboxes that are just notes? Add \`<!-- task-list: ignore -->\` to that
 comment, or disable the gate for this PR with \`<!-- task-list: disable -->\`
 in the description or the \`${DISABLE_LABEL}\` label.</sub>
+
+---
 
 ${BUILD_FOOTER}`;
 }

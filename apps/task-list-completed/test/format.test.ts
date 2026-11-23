@@ -86,10 +86,10 @@ describe("buildStickyBody", () => {
     expect(body).toContain("all 4 tasks complete");
   });
 
-  it("ends both bodies with the build footer", () => {
+  it("ends both bodies with the build footer below a divider", () => {
     const item = { text: "x", url: "https://pr#c1", source: "comment" } as const;
-    expect(buildStickyBody([], 1).endsWith(`\n\n${BUILD_FOOTER}`)).toBe(true);
-    expect(buildStickyBody([item], 1).endsWith(`\n\n${BUILD_FOOTER}`)).toBe(true);
+    expect(buildStickyBody([], 1).endsWith(`\n\n---\n\n${BUILD_FOOTER}`)).toBe(true);
+    expect(buildStickyBody([item], 1).endsWith(`\n\n---\n\n${BUILD_FOOTER}`)).toBe(true);
   });
 
   it("does not render outstanding items as parseable checkboxes", () => {

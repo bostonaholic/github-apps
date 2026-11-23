@@ -83,16 +83,16 @@ describe("commentBody frame", () => {
     expect(body).toContain("Graded commit abc1234.");
   });
 
-  it("ends with the build footer naming the model that graded the diff", () => {
+  it("ends with the build footer, below a divider, naming the model that graded the diff", () => {
     const body = commentBody(grade(), BLOCKED, SHA, MODEL);
-    expect(body.endsWith(`\n\n${commentFooter(MODEL)}`)).toBe(true);
+    expect(body.endsWith(`\n\n---\n\n${commentFooter(MODEL)}`)).toBe(true);
     expect(body).toContain("graded by claude-haiku-5-5");
   });
 
   it("names no model when the diff was not graded", () => {
     const ungraded = grade({ assessment: null, ungraded: "the model returned no assessment" });
     const body = commentBody(ungraded, BLOCKED, SHA, MODEL);
-    expect(body.endsWith(`\n\n${commentFooter(null)}`)).toBe(true);
+    expect(body.endsWith(`\n\n---\n\n${commentFooter(null)}`)).toBe(true);
     expect(body).not.toContain("graded by");
   });
 

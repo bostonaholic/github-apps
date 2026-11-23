@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `merge-warden vX.Y.Z · cb6ab00 · graded by claude-haiku-5-5`. A comment
   for a diff the model did not grade names no model.
 
+### Changed
+
+- A horizontal rule separates the grade comment from its build footer.
+
 ## [0.2.0] - 2026-11-22
 
 ### Added
