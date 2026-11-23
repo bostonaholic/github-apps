@@ -159,6 +159,16 @@ export default (app: Probot) => {
     const command = parseCommand(comment.body);
     if (command === null) return;
 
+    // Acknowledge first: the reaction request starts before the
+    // permission lookup, and is removed if the commenter cannot grade.
+    const reaction = context.octokit.rest.reactions
+      .createForIssueComment(context.repo({ comment_id: comment.id, content: "eyes" }))
+      .then(({ data }) => data.id)
+      .catch((error: unknown) => {
+        context.log.warn({ err: error }, `${issue.number}: could not react to grade command`);
+        return null;
+      });
+
     const { data } = await context.octokit.rest.repos.getCollaboratorPermissionLevel({
       ...context.repo(),
       username: user.login,
@@ -167,6 +177,14 @@ export default (app: Probot) => {
       context.log.info(
         `${issue.number}: ignoring grade command from ${user.login} (${data.permission})`,
       );
+      const reaction_id = await reaction;
+      if (reaction_id !== null) {
+        await context.octokit.rest.reactions
+          .deleteForIssueComment(context.repo({ comment_id: comment.id, reaction_id }))
+          .catch((error: unknown) =>
+            context.log.warn({ err: error }, `${issue.number}: could not remove reaction`),
+          );
+      }
       return;
     }
 
@@ -174,13 +192,9 @@ export default (app: Probot) => {
       await context.octokit.rest.issues.createComment(
         context.issue({ body: UNKNOWN_MODEL_REPLY }),
       );
+      await reaction;
       return;
     }
-    await context.octokit.rest.reactions
-      .createForIssueComment(context.repo({ comment_id: comment.id, content: "eyes" }))
-      .catch((error: unknown) =>
-        context.log.warn({ err: error }, `${issue.number}: could not react to grade command`),
-      );
     await run(context, issue.number, "regrade", command.model ?? undefined);
   });
 };
