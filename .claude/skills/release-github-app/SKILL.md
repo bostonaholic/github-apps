@@ -14,6 +14,9 @@ any of those — run the script.
 
 Arguments: **app** is a directory under `apps/`. **bump** is optional:
 `patch`, `minor`, `major`, or an explicit `X.Y.Z`.
+Several apps: an app needs a release when `git log <its latest tag>..origin/main
+-- apps/<app>` is non-empty. Run one release per app, in parallel if wanted:
+each PR touches only its app; rebase one that falls behind main.
 
 Run every command from the repo (or worktree) root.
 
@@ -36,6 +39,10 @@ Choosing the bump is the one judgment call:
   the unchanged version for an app's first release).
 - Never pick `major` yourself. If the entries describe a breaking change,
   ask the user.
+
+Before Step 2, read every `[Unreleased]` entry against its heading:
+Added (new), Changed (different behavior or default), Removed (gone),
+Fixed (bug). Move a misfiled entry now; the notes are fixed once tagged.
 
 ## Step 2 — release commit
 
@@ -85,6 +92,9 @@ URL — report it.
 - Signing fails: stop, per the global signing rules. Never unsigned.
 - Pushed tags are immutable. A wrong release after `git push` of the tag
   is fixed with a new patch release, never by moving or deleting the tag.
+- Notes wrong, tag right: fix the section in a `docs(<app>)` PR, build the
+  body with `sectionBody` (release-lib) from the merged CHANGELOG.md, and
+  `gh release edit <tag> --notes-file <file>`. No patch release.
 - A tag created locally but not pushed (e.g. `tag -v` failed): delete it
   with `git tag -d <tag>` and rerun `publish.mjs`.
 
