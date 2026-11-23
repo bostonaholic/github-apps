@@ -16,6 +16,7 @@ import {
   cutRelease,
   sectionBody,
   findRelativeLinks,
+  findSplitLists,
 } from "./release-lib.mjs";
 
 const HEADER = `# Changelog
@@ -166,4 +167,40 @@ test("every app's released changelog sections produce release notes", () => {
       assert.deepEqual(findRelativeLinks(notes), [], `${app} ${version}`);
     }
   }
+});
+
+test("findSplitLists flags a blank line between bullets of one section", () => {
+  const split = [
+    "### Fixed",
+    "",
+    "- Approves without a review body.",
+    "",
+    "- A failed check run no longer blocks the merge after a newer",
+    "  run of the same check succeeds.",
+    "",
+    "### Changed",
+    "",
+    "- One.",
+    "  Continued.",
+    "",
+    "- Two.",
+  ].join("\n");
+  assert.deepEqual(findSplitLists(split), ["### Fixed", "### Changed"]);
+});
+
+test("findSplitLists accepts tight lists and bullets after a paragraph", () => {
+  const ok = [
+    "### Fixed",
+    "",
+    "- One.",
+    "  Continued.",
+    "- Two.",
+    "",
+    "### Changed",
+    "",
+    "Intro paragraph.",
+    "",
+    "- Three.",
+  ].join("\n");
+  assert.deepEqual(findSplitLists(ok), []);
 });

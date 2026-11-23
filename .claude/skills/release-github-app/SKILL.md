@@ -27,9 +27,9 @@ git fetch origin && git switch -c chore/<app>-release origin/main   # or reuse a
 node .claude/skills/release-github-app/scripts/preflight.mjs <app>
 ```
 
-Exits 1 with the reason if the tree is dirty, `[Unreleased]` is empty, or
-its links are relative. Otherwise prints JSON with `unreleased` entries and
-`suggestedPrepareArg`.
+Exits 1 with the reason if the tree is dirty, `[Unreleased]` is empty,
+its links are relative, or a blank line splits a section's bullet list.
+Otherwise prints JSON with `unreleased` entries and `suggestedPrepareArg`.
 
 Choosing the bump is the one judgment call:
 
