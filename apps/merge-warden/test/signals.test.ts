@@ -23,36 +23,14 @@ describe("maxLevel", () => {
   });
 });
 
-describe("readSignals: risk floor", () => {
-  it("is low with no reasons for an ordinary change", () => {
-    const result = signals([file("src/app.ts"), file("README.md")]);
-    expect(result.riskFloor).toBe("low");
-    expect(result.floorReasons).toEqual([]);
-    expect(result.ungradeable).toBeNull();
-  });
-
+describe("readSignals", () => {
   it.each([
+    "src/app.ts",
     "db/migrations/001_add_users.sql",
     ".env",
-    "src/auth/session.ts",
     ".github/workflows/ci.yml",
-    "CODEOWNERS",
-  ])("does not judge %s by its path", (path) => {
-    const result = signals([file(path)]);
-    expect(result.riskFloor).toBe("low");
-    expect(result.floorReasons).toEqual([]);
-  });
-
-  it("floors a diff over 400 changed lines at medium", () => {
-    expect(signals([file("a.ts", { changes: 400 })]).riskFloor).toBe("low");
-    expect(signals([file("a.ts", { changes: 401 })]).riskFloor).toBe("medium");
-  });
-
-  it("floors a diff over 20 files at medium", () => {
-    const files = (count: number) =>
-      Array.from({ length: count }, (_, i) => file(`src/f${i}.ts`, { changes: 1 }));
-    expect(signals(files(20)).riskFloor).toBe("low");
-    expect(signals(files(21)).riskFloor).toBe("medium");
+  ])("finds %s gradeable, whatever its path", (path) => {
+    expect(signals([file(path)]).ungradeable).toBeNull();
   });
 });
 

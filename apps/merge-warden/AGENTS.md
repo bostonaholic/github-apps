@@ -25,9 +25,8 @@ Strict layering, pure core with I/O at the edges:
 
 - `src/config.ts` — pure: repo config defaults and normalization, and the
   two label names the app reads
-- `src/signals.ts` — pure: diff size → risk floor, and whether the diff
-  can be graded whole. No path or file name is judged here; the model
-  judges what the diff does
+- `src/signals.ts` — pure: whether the diff can be graded whole. Nothing
+  here grades the diff; the model judges what it does
 - `src/grade.ts` — pure: signals + model assessment + labels → `Grade`
 - `src/policy.ts` — pure: scope test, `gradeVerdict` (stored once per
   commit as the check conclusion), and `liveBlock` / `mergeDecision`

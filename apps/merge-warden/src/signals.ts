@@ -1,6 +1,5 @@
-// Pure: what the changed files say before the model reads them: whether
-// the diff can be sent whole, and a risk floor from its size alone. The
-// model judges what the diff does; no path or file name is judged here.
+// Pure: whether the diff can be sent to the model whole. The model judges
+// everything about what the diff does; nothing here grades it.
 
 export type Level = "low" | "medium" | "high";
 export type Door = "one-way" | "two-way";
@@ -30,8 +29,6 @@ export interface ChangedFile {
 }
 
 export interface Signals {
-  riskFloor: Level;
-  floorReasons: string[];
   // Why the diff cannot be sent to the model whole; null when it can.
   ungradeable: string | null;
 }
@@ -43,19 +40,10 @@ export const MAX_FILES = 300;
 // the model never grades a partial diff.
 export const MAX_DIFF_CHARS = 200_000;
 
-const MEDIUM_CHANGED_LINES = 400;
-const MEDIUM_CHANGED_FILES = 20;
-
 // `expectedFiles` is the pull request's own changed-file count. A list of
 // any other length is incomplete or belongs to a different commit.
 export function readSignals(files: ChangedFile[], expectedFiles: number): Signals {
-  const changedLines = files.reduce((sum, file) => sum + file.changes, 0);
-  const large = changedLines > MEDIUM_CHANGED_LINES || files.length > MEDIUM_CHANGED_FILES;
-  return {
-    riskFloor: large ? "medium" : "low",
-    floorReasons: large ? [`large diff: ${changedLines} lines in ${files.length} files`] : [],
-    ungradeable: whyUngradeable(files, expectedFiles),
-  };
+  return { ungradeable: whyUngradeable(files, expectedFiles) };
 }
 
 function whyUngradeable(files: ChangedFile[], expectedFiles: number): string | null {

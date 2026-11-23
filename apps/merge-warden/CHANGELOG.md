@@ -24,6 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Removed
 
+- The medium risk floor for a diff over 400 changed lines or 20 files.
+  Claude already lowers its confidence for a large change.
 - The `one_way_door_paths` and `high_risk_paths` config keys. They are
   ignored if present. Use the `one-way-door` or `no-auto-merge` label on
   a pull request instead.

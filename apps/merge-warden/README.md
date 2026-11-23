@@ -28,12 +28,12 @@ branch, the app:
 | Data/security | low, medium, high | Claude |
 | Recovery | low, medium, high | Claude |
 | Door | one-way, two-way | label or Claude |
-| Risk | highest of the three axes, the size floor, and any finding | computed |
+| Risk | highest of the three axes and any finding | computed |
 | Confidence | 0–100 | Claude |
 
-Claude judges every axis and the door from what the diff does. No path
-or file name is judged by a rule. Claude cannot lower the size floor or
-reverse the `one-way-door` label.
+Claude judges every axis and the door from what the diff does. No rule
+judges paths, file names, or diff size. Claude cannot reverse the
+`one-way-door` label.
 
 The comment shows each level with a traffic light: 🟢 Low, 🟡 Medium,
 🔴 High. It shows the door as 🔄 Reversible (two-way) or ⛔ Irreversible
@@ -120,8 +120,6 @@ To use native auto-merge on a repo:
 Claude reports a change to what gates a merge (CI workflows, CODEOWNERS,
 branch protection, `.github/merge-warden.yml`) as a high finding, so it
 does not auto-merge.
-
-A diff over 400 changed lines or 20 files has a risk floor of medium.
 
 ### Diffs that are not graded
 

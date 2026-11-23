@@ -6,8 +6,6 @@ const LEVELS: Level[] = ["low", "medium", "high"];
 
 function signals(overrides: Partial<Signals> = {}): Signals {
   return {
-    riskFloor: "low",
-    floorReasons: [],
     ungradeable: null,
     ...overrides,
   };
@@ -50,27 +48,24 @@ describe("buildGrade: risk", () => {
     expect(grade.risk).toBe("high");
   });
 
-  it("is never below the rule floor, for every combination of inputs", () => {
-    for (const floor of LEVELS) {
-      for (const customer of LEVELS) {
-        for (const data_security of LEVELS) {
-          for (const recovery of LEVELS) {
-            for (const finding of [null, ...LEVELS]) {
-              const grade = buildGrade(
-                signals({ riskFloor: floor }),
-                assessment({
-                  customer,
-                  data_security,
-                  recovery,
-                  findings: finding ? [{ severity: finding, text: "x" }] : [],
-                }),
-                [],
-              );
-              expect(maxLevel(grade.risk, floor)).toBe(grade.risk);
-              expect(grade.risk).toBe(
-                maxLevel(floor, customer, data_security, recovery, finding ?? "low"),
-              );
-            }
+  it("is the highest axis or finding, for every combination of inputs", () => {
+    for (const customer of LEVELS) {
+      for (const data_security of LEVELS) {
+        for (const recovery of LEVELS) {
+          for (const finding of [null, ...LEVELS]) {
+            const grade = buildGrade(
+              signals(),
+              assessment({
+                customer,
+                data_security,
+                recovery,
+                findings: finding ? [{ severity: finding, text: "x" }] : [],
+              }),
+              [],
+            );
+            expect(grade.risk).toBe(
+              maxLevel(customer, data_security, recovery, finding ?? "low"),
+            );
           }
         }
       }
