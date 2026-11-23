@@ -16,7 +16,7 @@ preconditions, one-time sandbox setup, and failure triage.
 | Step | Scenario | Expected |
 | --- | --- | --- |
 | 1 | New `notes/*.md` file | check `success` "Eligible for auto-merge"; grade comment ✅ eligible, 🔄 Reversible, names the head commit; approved by the app's bot; merged once the sandbox `check` job is green |
-| 2 | New `db/migrations/*.sql` file | check `neutral` "one-way door"; grade comment ⚠️ needs a person, ⛔ Irreversible; open, not approved |
+| 2 | New `db/migrations/*.sql` file that alters a table (the model judges it one-way; no path rule) | check `neutral` "one-way door"; grade comment ⚠️ needs a person, ⛔ Irreversible; open, not approved |
 | 3 | Notes file opened as draft, labeled `one-way-door`, marked ready | check `neutral` "label: one-way-door"; open, not approved |
 | 4 | Notes file opened as draft, labeled `no-auto-merge`, marked ready | check `success` (the label does not change the grade); CI green; open, not approved |
 | 5 | Notes file opened as draft with an `[e2e-fail-ci]` commit message (CI red), marked ready, then a second notes commit | check `success`; open and not approved while red; the fixing commit is graded `success`, the grade comment names it, and it is approved and merged |

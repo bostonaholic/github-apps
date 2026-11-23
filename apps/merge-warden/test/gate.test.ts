@@ -413,11 +413,10 @@ describe("reconcile: grading", () => {
     ]);
   });
 
-  it("concludes neutral and names a one-way door", async () => {
+  it("leaves the door of a migration to the model", async () => {
     const calls = await run({ files: MIGRATION });
-    expect(conclusionOf(calls)).toBe("neutral");
-    expect(titleOf(calls)).toContain("one-way door");
-    expect(summaryOf(calls)).toContain("data change: db/migrations/001_add_users.sql");
+    expect(calls.assessments).toHaveLength(1);
+    expect(conclusionOf(calls)).toBe("success");
   });
 
   it("reads the one-way-door label into the grade", async () => {
@@ -472,22 +471,6 @@ describe("reconcile: model assessment", () => {
     ["confidence under 90", { ...LOW_RISK, confidence: 89 }],
   ])("concludes neutral for %s", async (_name, assessment) => {
     expect(conclusionOf(await run({ assessment }))).toBe("neutral");
-  });
-
-  it("keeps a path-rule one-way door when the model says two-way and low", async () => {
-    const calls = await run({ files: MIGRATION });
-    expect(calls.assessments).toHaveLength(1);
-    expect(conclusionOf(calls)).toBe("neutral");
-  });
-
-  it("keeps a high rule floor when the model says low", async () => {
-    const calls = await run({
-      files: [
-        { filename: ".github/workflows/ci.yml", status: "modified", changes: 1, patch: "+x" },
-      ],
-    });
-    expect(conclusionOf(calls)).toBe("neutral");
-    expect(titleOf(calls)).toContain("risk is high");
   });
 
   it("does not call the model for a diff it cannot send whole", async () => {
@@ -780,10 +763,6 @@ describe("reconcile: one-way doors never merge", () => {
       pr: { labels: [{ name: "one-way-door" }] },
       ownRuns: mode === "act" ? [verdict("neutral")] : [],
     }),
-    path: (mode) => ({
-      files: MIGRATION,
-      ownRuns: mode === "act" ? [verdict("neutral")] : [],
-    }),
     model: (mode) => ({
       assessment: { ...LOW_RISK, door: "one-way", door_reason: "publishes a release" },
       ownRuns: mode === "act" ? [verdict("neutral")] : [],
@@ -858,7 +837,7 @@ describe("reconcile: one-way doors never merge", () => {
         }
       }
     }
-    expect(cases).toBe(768);
+    expect(cases).toBe(576);
   });
 });
 
@@ -935,7 +914,10 @@ describe("reconcile: disarming native auto-merge", () => {
 
   it("disarms a new commit before claiming, grading, or publishing anything", async () => {
     // Armed on an earlier commit; a push arrives; this head has no verdict.
-    const calls = await run({ pr: armed, files: MIGRATION });
+    const calls = await run({
+      pr: armed,
+      assessment: { ...LOW_RISK, door: "one-way", door_reason: "drops a table" },
+    });
     expect(calls.order).toEqual(["disarm", "claim", "model", "complete"]);
     expect(calls.disarms).toEqual([{ id: "PR_1" }]);
   });

@@ -100,7 +100,7 @@ function report(grade: Grade, verdict: Verdict): string[] {
       assessment ? `${grade.confidence}%` : "—",
     ].join(" | ")} |`,
     "",
-    "Risk is the highest of the three axes, the rule floor, and any finding.",
+    "Risk is the highest of the three axes and any finding.",
     "",
     `**Why:** ${reason}`,
   ];
@@ -113,9 +113,6 @@ function report(grade: Grade, verdict: Verdict): string[] {
 
   if (grade.doorReasons.length > 0) {
     lines.push("", "**One-way door because:**", ...bullets(grade.doorReasons));
-  }
-  if (grade.floorReasons.length > 0) {
-    lines.push("", "**Rules raised the risk floor:**", ...bullets(grade.floorReasons));
   }
   if (assessment) {
     lines.push("", `**Summary:** ${plainText(assessment.summary, 600)}`, "", "**Findings**");

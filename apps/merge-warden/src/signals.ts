@@ -1,9 +1,5 @@
-// Pure: deterministic risk signals read from the changed files alone.
-// These set a floor that the model's assessment can raise but never
-// lower, and they decide on their own whether a diff is a one-way door.
-
-import picomatch from "picomatch";
-import type { WardenConfig } from "./config.js";
+// Pure: whether the diff can be sent to the model whole. The model judges
+// everything about what the diff does; nothing here grades it.
 
 export type Level = "low" | "medium" | "high";
 export type Door = "one-way" | "two-way";
@@ -24,8 +20,7 @@ export function exceeds(level: Level, ceiling: Level): boolean {
 // One entry of a commit comparison's `files` list.
 export interface ChangedFile {
   filename: string;
-  // Set on renames. Matched too, so moving a file out of a guarded
-  // directory still counts as touching it.
+  // Set on renames.
   previous_filename?: string;
   status: string;
   changes: number;
@@ -34,11 +29,6 @@ export interface ChangedFile {
 }
 
 export interface Signals {
-  door: Door;
-  // Why the door is one-way; empty for a two-way door.
-  doorReasons: string[];
-  riskFloor: Level;
-  floorReasons: string[];
   // Why the diff cannot be sent to the model whole; null when it can.
   ungradeable: string | null;
 }
@@ -50,87 +40,10 @@ export const MAX_FILES = 300;
 // the model never grades a partial diff.
 export const MAX_DIFF_CHARS = 200_000;
 
-const MEDIUM_CHANGED_LINES = 400;
-const MEDIUM_CHANGED_FILES = 20;
-
-// dot: match dotfiles and dot-directories. nocase: SCHEMA.SQL is schema.sql.
-const GLOB_OPTIONS = { dot: true, nocase: true };
-
-const ONE_WAY_GLOBS: readonly { category: string; globs: string[] }[] = [
-  {
-    category: "data change",
-    globs: ["**/migrations/**", "**/migrate/**", "**/*.sql", "**/schema.*"],
-  },
-  {
-    category: "public contract",
-    globs: ["**/openapi*.{yml,yaml,json}", "**/*.proto", "**/*.graphql"],
-  },
-  {
-    category: "security and access",
-    globs: ["**/.env*", "**/secrets/**", "**/auth/**", "**/iam/**", "**/*.tf"],
-  },
-];
-
-// Reversible, but they change what gates a merge.
-const HIGH_RISK_GLOBS = [
-  ".github/workflows/**",
-  ".github/merge-warden.yml",
-  "**/CODEOWNERS",
-];
-
-type PathRules = Pick<WardenConfig, "one_way_door_paths" | "high_risk_paths">;
-
 // `expectedFiles` is the pull request's own changed-file count. A list of
 // any other length is incomplete or belongs to a different commit.
-export function readSignals(
-  files: ChangedFile[],
-  rules: PathRules,
-  expectedFiles: number,
-): Signals {
-  const oneWay = [
-    ...ONE_WAY_GLOBS,
-    { category: "configured one-way path", globs: rules.one_way_door_paths },
-  ].map(({ category, globs }) => ({
-    category,
-    matches: picomatch(globs, GLOB_OPTIONS),
-  }));
-  const highRisk = picomatch(
-    [...HIGH_RISK_GLOBS, ...rules.high_risk_paths],
-    GLOB_OPTIONS,
-  );
-
-  const doorReasons = new Set<string>();
-  const floorReasons = new Set<string>();
-  let riskFloor: Level = "low";
-
-  for (const file of files) {
-    const paths = file.previous_filename
-      ? [file.filename, file.previous_filename]
-      : [file.filename];
-    for (const path of paths) {
-      for (const { category, matches } of oneWay) {
-        if (matches(path)) doorReasons.add(`${category}: ${path}`);
-      }
-      if (highRisk(path)) {
-        riskFloor = "high";
-        floorReasons.add(`high-risk path: ${path}`);
-      }
-    }
-  }
-
-  const changedLines = files.reduce((sum, file) => sum + file.changes, 0);
-  if (changedLines > MEDIUM_CHANGED_LINES || files.length > MEDIUM_CHANGED_FILES) {
-    riskFloor = maxLevel(riskFloor, "medium");
-    floorReasons.add(`large diff: ${changedLines} lines in ${files.length} files`);
-  }
-
-  return {
-    door: doorReasons.size > 0 ? "one-way" : "two-way",
-    doorReasons: [...doorReasons],
-    riskFloor,
-    floorReasons: [...floorReasons],
-    ungradeable: whyUngradeable(files, expectedFiles),
-  };
+export function readSignals(files: ChangedFile[], expectedFiles: number): Signals {
+  return { ungradeable: whyUngradeable(files, expectedFiles) };
 }
 
 function whyUngradeable(files: ChangedFile[], expectedFiles: number): string | null {

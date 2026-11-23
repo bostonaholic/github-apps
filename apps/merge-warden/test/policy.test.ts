@@ -22,7 +22,6 @@ function grade(overrides: Partial<Grade> = {}): Grade {
     door: "two-way",
     doorReasons: [],
     risk: "low",
-    floorReasons: [],
     confidence: 95,
     assessment: null,
     ungraded: null,

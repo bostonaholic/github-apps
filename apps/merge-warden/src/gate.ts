@@ -368,7 +368,7 @@ async function gradeHead(
       base: pr.base.sha,
       head: pr.head.sha,
     });
-    const signals = readSignals(files, config, pr.changed_files);
+    const signals = readSignals(files, pr.changed_files);
     // The model sees the whole diff or none of it.
     const assessment =
       signals.ungradeable === null ? await assess(anthropic(), files, log) : null;

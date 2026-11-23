@@ -8,10 +8,6 @@ export interface WardenConfig {
   // Lowercased logins whose PRs may be auto-merged. Nobody else's are.
   authors: string[];
   merge_method: MergeMethod;
-  // Globs added to the built-in lists in signals.ts. Config extends those
-  // lists; it cannot remove a built-in entry.
-  one_way_door_paths: string[];
-  high_risk_paths: string[];
   // Names of the check runs (or commit-status contexts) that are this
   // repo's CI. All must succeed before the app merges directly. Empty:
   // the app never merges directly.
@@ -41,8 +37,6 @@ export function normalizeConfig(
     enabled: config.enabled !== false,
     authors: authors.map((login) => login.toLowerCase()),
     merge_method: isMergeMethod(config.merge_method) ? config.merge_method : "squash",
-    one_way_door_paths: stringList(config.one_way_door_paths),
-    high_risk_paths: stringList(config.high_risk_paths),
     ci_checks: stringList(config.ci_checks),
   };
 }

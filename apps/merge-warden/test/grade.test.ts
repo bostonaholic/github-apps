@@ -6,10 +6,6 @@ const LEVELS: Level[] = ["low", "medium", "high"];
 
 function signals(overrides: Partial<Signals> = {}): Signals {
   return {
-    door: "two-way",
-    doorReasons: [],
-    riskFloor: "low",
-    floorReasons: [],
     ungradeable: null,
     ...overrides,
   };
@@ -52,27 +48,24 @@ describe("buildGrade: risk", () => {
     expect(grade.risk).toBe("high");
   });
 
-  it("is never below the rule floor, for every combination of inputs", () => {
-    for (const floor of LEVELS) {
-      for (const customer of LEVELS) {
-        for (const data_security of LEVELS) {
-          for (const recovery of LEVELS) {
-            for (const finding of [null, ...LEVELS]) {
-              const grade = buildGrade(
-                signals({ riskFloor: floor }),
-                assessment({
-                  customer,
-                  data_security,
-                  recovery,
-                  findings: finding ? [{ severity: finding, text: "x" }] : [],
-                }),
-                [],
-              );
-              expect(maxLevel(grade.risk, floor)).toBe(grade.risk);
-              expect(grade.risk).toBe(
-                maxLevel(floor, customer, data_security, recovery, finding ?? "low"),
-              );
-            }
+  it("is the highest axis or finding, for every combination of inputs", () => {
+    for (const customer of LEVELS) {
+      for (const data_security of LEVELS) {
+        for (const recovery of LEVELS) {
+          for (const finding of [null, ...LEVELS]) {
+            const grade = buildGrade(
+              signals(),
+              assessment({
+                customer,
+                data_security,
+                recovery,
+                findings: finding ? [{ severity: finding, text: "x" }] : [],
+              }),
+              [],
+            );
+            expect(grade.risk).toBe(
+              maxLevel(customer, data_security, recovery, finding ?? "low"),
+            );
           }
         }
       }
@@ -81,20 +74,10 @@ describe("buildGrade: risk", () => {
 });
 
 describe("buildGrade: door", () => {
-  it("is two-way when rules, label, and assessment all say so", () => {
+  it("is two-way when label and assessment both say so", () => {
     const grade = buildGrade(signals(), assessment(), ["bug"]);
     expect(grade.door).toBe("two-way");
     expect(grade.doorReasons).toEqual([]);
-  });
-
-  it("is one-way when a path rule says so, whatever the assessment says", () => {
-    const grade = buildGrade(
-      signals({ door: "one-way", doorReasons: ["data change: db/migrations/1.sql"] }),
-      assessment({ door: "two-way" }),
-      [],
-    );
-    expect(grade.door).toBe("one-way");
-    expect(grade.doorReasons).toEqual(["data change: db/migrations/1.sql"]);
   });
 
   it("is one-way when the label is present", () => {
@@ -113,13 +96,13 @@ describe("buildGrade: door", () => {
     expect(grade.doorReasons).toEqual(["assessment: publishes a package version"]);
   });
 
-  it("collects every reason when several sources agree", () => {
+  it("collects both reasons when label and assessment agree", () => {
     const grade = buildGrade(
-      signals({ door: "one-way", doorReasons: ["data change: a.sql"] }),
+      signals(),
       assessment({ door: "one-way", door_reason: "drops a column" }),
       ["one-way-door"],
     );
-    expect(grade.doorReasons).toHaveLength(3);
+    expect(grade.doorReasons).toHaveLength(2);
   });
 });
 
@@ -138,12 +121,8 @@ describe("buildGrade: no assessment", () => {
     );
   });
 
-  it("still reports a one-way door from rules and label", () => {
-    const grade = buildGrade(
-      signals({ door: "one-way", doorReasons: ["data change: a.sql"] }),
-      null,
-      ["one-way-door"],
-    );
+  it("still reports a one-way door from the label", () => {
+    const grade = buildGrade(signals(), null, ["one-way-door"]);
     expect(grade.door).toBe("one-way");
   });
 });

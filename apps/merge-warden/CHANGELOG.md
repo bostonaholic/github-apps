@@ -14,6 +14,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Claude judges every factor, including whether a change is a one-way
+  door, from what the diff does, not from file names. The built-in path
+  globs are gone: editing `.env.example`, a migration directory, or
+  `auth/` no longer forces a one-way door on its own.
+- Claude reports a change to CI workflows, CODEOWNERS, branch protection,
+  or `.github/merge-warden.yml` as a high finding, replacing the built-in
+  high-risk paths.
+
+### Removed
+
+- The medium risk floor for a diff over 400 changed lines or 20 files.
+  Claude already lowers its confidence for a large change.
+- The `one_way_door_paths` and `high_risk_paths` config keys. They are
+  ignored if present. Use the `one-way-door` or `no-auto-merge` label on
+  a pull request instead.
 - Grades with `claude-haiku-5-5` instead of `claude-sonnet-5-5`. The
   optional `ANTHROPIC_MODEL` environment variable selects another model
   without a code change.

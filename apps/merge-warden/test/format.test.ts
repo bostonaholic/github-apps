@@ -19,7 +19,6 @@ function grade(overrides: Partial<Grade> = {}): Grade {
     door: "two-way",
     doorReasons: [],
     risk: "medium",
-    floorReasons: [],
     confidence: 95,
     assessment: ASSESSMENT,
     ungraded: null,
@@ -187,19 +186,12 @@ describe("commentBody report", () => {
     expect(summary).not.toContain("evil.example");
   });
 
-  it("lists door and floor reasons", () => {
+  it("lists door reasons", () => {
     const { summary } = rendered(
-      grade({
-        door: "one-way",
-        doorReasons: ["data change: db/migrations/1.sql"],
-        floorReasons: ["high-risk path: .github/workflows/ci.yml"],
-      }),
+      grade({ door: "one-way", doorReasons: ["data change: db/migrations/1.sql"] }),
       { eligible: false, reason: "one-way door (data change: db/migrations/1.sql)" },
     );
     expect(summary).toContain("**One-way door because:**\n\n- data change: db/migrations/1.sql");
-    expect(summary).toContain(
-      "**Rules raised the risk floor:**\n\n- high-risk path: .github/workflows/ci.yml",
-    );
   });
 
   it("lists findings with their severity", () => {
