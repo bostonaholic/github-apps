@@ -22,8 +22,11 @@ preconditions, one-time sandbox setup, and failure triage.
 | 5 | Notes file opened as draft with an `[e2e-fail-ci]` commit message (CI red), marked ready, then a second notes commit | check `success`; open and not approved while red; the fixing commit is graded `success`, the grade comment names it, and it is approved and merged |
 | 6 | Notes file on a PR whose base is not `main` | out of scope: no `merge-warden` check run; open, not approved |
 | 7 | Notes file opened as draft, CI green, labeled `e2e-fail-ci` (CI red on the same commit), marked ready, then unlabeled (CI green again) | check `success`; open and not approved while red; merged after the label is removed, with no new commit |
+| 8 | On step 4's PR: comment `/merge-warden grade opus` twice, then `/merge-warden grade`, then `/merge-warden grade gpt-5` | each command adds a completed check run; the first adds an Opus grade comment naming the commit and `claude-opus-5-5` (2 grade comments); the later two edit comments (still 2); `gpt-5` gets an "unknown model" reply and no run; PR stays open, not approved |
 
-Every grade in steps 1–5 and 7 is a live Claude call (the model sees the diff).
+Every grade in steps 1–5, 7, and 8 is a live Claude call (the model sees the diff).
+Step 8 grades with Opus twice. A read-only commenter being ignored is not
+covered: the run has one `gh` login.
 Steps 1, 4, 5, and 7 depend on the model grading a one-line notes file as low
 risk with confidence ≥ 90.
 
@@ -171,6 +174,11 @@ added stay in the sandbox history.
 - **Step 7 approved or merged while labeled**: `checksRollup` regressed.
 - **Step 6 got a check run**: `scopeBlock` stopped testing the base
   branch.
+- **Step 8 run-count timeout after a comment**: the app is not receiving
+  `issue_comment` (registration missing the event or Issues read, or the
+  installation has not accepted it), or `parseCommand` / `canGrade` in
+  `src/command.ts` rejected it. A third grade comment means
+  `upsertComment` stopped matching the per-model marker.
 - Do not retry a failed run more than once before diagnosing: apart from
   webhook and Actions delays, the only nondeterminism is the model's
   grade, which the check title states.

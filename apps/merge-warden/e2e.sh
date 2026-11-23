@@ -7,7 +7,8 @@
 # approved or merged, no-auto-merge stops a success verdict, red CI blocks
 # until a fixing commit, a red CI run superseded by a green one on the same
 # commit does not block the merge, and a PR off the default branch gets no
-# check at all.
+# check at all, and the `/merge-warden grade [model]` comment grades again
+# with the named model, one comment per model.
 #
 # Requires: gh (authenticated as the sandbox owner, the default `authors`),
 # the app installed on the sandbox repo, and the sandbox prepared with the
@@ -140,12 +141,74 @@ wait_for_check() {
   fail "timed out after ${POLL_TIMEOUT}s waiting for check [$want|*$title*] on $sha; last seen [${got:-none}]"
 }
 
-# The app's sticky grade comment on the PR, found by its hidden marker and
-# the app's login. Posted after the verdict, so poll for it.
+# The hidden marker that starts the app's grade comment. Each model has its
+# own comment, marked `<!-- merge-warden: grade model=<id> -->`; steps 1-7
+# grade with the default model only, so they match any grade comment.
+COMMENT_MARKER="<!-- merge-warden: grade"
+model_marker() { printf '<!-- merge-warden: grade model=%s -->' "$1"; }
+
+# The app's grade comment on the PR matching COMMENT_MARKER, found by its
+# hidden marker and the app's login. Posted after the verdict, so poll for it.
 grade_comment() {
   gh api "repos/$REPO/issues/$1/comments" \
-    --jq "[.[] | select(.user.login == \"${APP_SLUG}[bot]\" and (.body | contains(\"<!-- merge-warden: grade -->\")))] | .[0].body // empty" \
+    --jq "[.[] | select(.user.login == \"${APP_SLUG}[bot]\" and (.body | startswith(\"$COMMENT_MARKER\")))] | .[0].body // empty" \
     2>/dev/null || true
+}
+
+# How many grade comments, for any model, the app has on the PR.
+grade_comment_count() {
+  gh api "repos/$REPO/issues/$1/comments" \
+    --jq "[.[] | select(.user.login == \"${APP_SLUG}[bot]\" and (.body | startswith(\"<!-- merge-warden: grade\")))] | length"
+}
+
+assert_grade_comment_count() {
+  local got
+  got=$(grade_comment_count "$1")
+  [[ "$got" == "$2" ]] || fail "PR #$1 has $got grade comment(s) from ${APP_SLUG}[bot]; expected $2"
+  log "  PR #$1 has $2 grade comment(s)"
+}
+
+# Completed merge-warden runs from this app on the sha.
+own_completed_runs() {
+  gh api "repos/$REPO/commits/$1/check-runs?check_name=$CHECK_NAME&filter=all" \
+    --jq "[.check_runs[] | select(.app.slug == \"$APP_SLUG\" and .status == \"completed\")] | length"
+}
+
+# wait_for_runs <sha> <count>: at least that many completed own runs.
+wait_for_runs() {
+  local sha="$1" want="$2" deadline got
+  deadline=$(( $(date +%s) + POLL_TIMEOUT ))
+  while (( $(date +%s) < deadline )); do
+    got=$(own_completed_runs "$sha")
+    if (( got >= want )); then
+      log "  $got completed $CHECK_NAME run(s) on $sha"
+      return 0
+    fi
+    sleep 5
+  done
+  fail "timed out waiting for $want completed $CHECK_NAME run(s) on $sha; last seen ${got:-0}"
+}
+
+comment_on() {
+  gh api -X POST "repos/$REPO/issues/$1/comments" -f body="$2" >/dev/null
+  log "  commented: $2"
+}
+
+# wait_for_reply <pr> <substring>: a non-grade comment from the app.
+wait_for_reply() {
+  local number="$1" want="$2" deadline got
+  deadline=$(( $(date +%s) + POLL_TIMEOUT ))
+  while (( $(date +%s) < deadline )); do
+    got=$(gh api "repos/$REPO/issues/$number/comments" \
+      --jq "[.[] | select(.user.login == \"${APP_SLUG}[bot]\" and (.body | contains(\"$want\")))] | length" \
+      2>/dev/null || true)
+    if [[ "${got:-0}" != "0" ]]; then
+      log "  app replied: $want"
+      return 0
+    fi
+    sleep 5
+  done
+  fail "timed out waiting for a reply on PR #$number containing [$want]"
 }
 
 # wait_for_comment <pr> <substring>...: every substring is in the comment.
@@ -351,5 +414,33 @@ log "  unlabeled e2e-fail-ci; same commit $HEAD7"
 wait_for_ci_conclusion "$HEAD7" success
 wait_merged "$PR7"
 assert_approved "$PR7"
+
+log "== 8: /merge-warden grade [model] grades again, one comment per model"
+# On step 4's PR: no-auto-merge keeps it open whatever the grade, so the
+# commands can run without a merge ending the step.
+OPUS="claude-opus-5-5"
+runs=$(own_completed_runs "$HEAD4")
+assert_grade_comment_count "$PR4" 1
+comment_on "$PR4" "/merge-warden grade opus"
+wait_for_runs "$HEAD4" $(( runs + 1 ))
+COMMENT_MARKER=$(model_marker "$OPUS")
+wait_for_comment "$PR4" "Graded commit $(short "$HEAD4") with $OPUS"
+assert_grade_comment_count "$PR4" 2
+comment_on "$PR4" "/merge-warden grade opus"
+wait_for_runs "$HEAD4" $(( runs + 2 ))
+sleep "$GRACE"
+assert_grade_comment_count "$PR4" 2
+comment_on "$PR4" "/merge-warden grade"
+wait_for_runs "$HEAD4" $(( runs + 3 ))
+sleep "$GRACE"
+assert_grade_comment_count "$PR4" 2
+comment_on "$PR4" "/merge-warden grade gpt-5"
+wait_for_reply "$PR4" "merge-warden: unknown model"
+sleep "$GRACE"
+[[ "$(own_completed_runs "$HEAD4")" == "$(( runs + 3 ))" ]] \
+  || fail "an unknown model on PR #$PR4 started a grade"
+log "  unknown model started no grade"
+COMMENT_MARKER="<!-- merge-warden: grade"
+assert_untouched "$PR4"
 
 log "E2E PASS ($REPO PRs #$PR1 #$PR2 #$PR3 #$PR4 #$PR5 #$PR6 #$PR7)"
