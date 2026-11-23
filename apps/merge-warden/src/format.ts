@@ -85,6 +85,8 @@ export function commentBody(
     "",
     `<sub>Graded commit ${sha.slice(0, 7)}. A new commit is graded again and this comment updates.</sub>`,
     "",
+    "---",
+    "",
     commentFooter(grade.assessment ? model : null),
   ].join("\n");
 }
