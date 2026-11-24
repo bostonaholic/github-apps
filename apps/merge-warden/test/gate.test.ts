@@ -302,6 +302,7 @@ interface Overrides {
   mode?: Mode;
   config?: typeof CONFIG;
   model?: string;
+  requestedBy?: string;
 }
 
 const PARAMS = {
@@ -327,6 +328,7 @@ function start(options: FakeOptions = {}, overrides: Overrides = {}) {
     botLogin: BOT,
     anthropic: anthropic as never,
     ...(overrides.model === undefined ? {} : { model: overrides.model }),
+    ...(overrides.requestedBy === undefined ? {} : { requestedBy: overrides.requestedBy }),
   });
   return { done, calls };
 }
@@ -380,6 +382,67 @@ describe("reconcile: scope", () => {
     expect(calls.ownRunLookups).toHaveLength(0);
     expect(calls.compares).toHaveLength(0);
     expect(calls.order).toEqual([]);
+  });
+});
+
+describe("reconcile: grade only, on request, out of scope", () => {
+  const FORK = { head: { sha: "head1", ref: "feature", repo: { full_name: "stranger/r" } } };
+  const STRANGER = { user: { login: "stranger", type: "User" } };
+  const OTHER_BASE = {
+    base: { sha: "base1", ref: "release", repo: { full_name: "owner/r", default_branch: "main" } },
+  };
+  const ASKED = { mode: "regrade" as Mode, requestedBy: "maintainer" };
+
+  it.each([
+    ["a fork", FORK],
+    ["an author outside the allowlist", STRANGER],
+  ])("grades %s and never approves, arms, or merges", async (_name, pr) => {
+    const calls = await run(
+      { pr, requiredChecks: OWN_CHECK_REQUIRED },
+      ASKED,
+    );
+    expect(calls.compares).toEqual([
+      expect.objectContaining({ basehead: "base1...head1" }),
+    ]);
+    expect(calls.assessments).toHaveLength(1);
+    expect(calls.order).toEqual(["claim", "model", "complete"]);
+    expect(conclusionOf(calls)).toBe("neutral");
+    expect(titleOf(calls)).toBe("Grade only: two-way door, low risk, confidence 95%");
+    expect(calls.approvals).toHaveLength(0);
+    expect(calls.arms).toHaveLength(0);
+    expect(calls.merges).toHaveLength(0);
+    const body = summaryOf(calls);
+    expect(body).toContain("### 📝 merge-warden: grade only");
+    expect(body).toContain("graded because maintainer asked");
+    expect(body).toContain("👤 Person");
+    expect(body).not.toContain("🟢 Merge");
+  });
+
+  it("disarms its own auto-merge before grading", async () => {
+    const calls = await run({ pr: { ...FORK, auto_merge: ARMED_BY_APP } }, ASKED);
+    expect(calls.order).toEqual(["disarm", "claim", "model", "complete"]);
+  });
+
+  it("does not grade a base other than the default branch", async () => {
+    const calls = await run({ pr: OTHER_BASE }, ASKED);
+    expect(calls.order).toEqual([]);
+    expect(calls.compares).toHaveLength(0);
+  });
+
+  it.each(["grade", "regrade", "act"] as Mode[])(
+    "does not grade a fork on a %s event nobody asked for",
+    async (mode) => {
+      const calls = await run({ pr: FORK }, { mode });
+      expect(calls.order).toEqual([]);
+      expect(calls.compares).toHaveLength(0);
+    },
+  );
+
+  it("grades an in-scope pull request as before when a person asks", async () => {
+    const calls = await run({}, ASKED);
+    expect(titleOf(calls)).toBe("Eligible for auto-merge");
+    expect(summaryOf(calls)).not.toContain("grade only");
+    expect(calls.merges).toHaveLength(1);
   });
 });
 

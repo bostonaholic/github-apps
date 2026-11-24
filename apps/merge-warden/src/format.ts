@@ -18,6 +18,14 @@ export function commentMarker(model: string): string {
 // the default model.
 export const LEGACY_COMMENT_MARKER = "<!-- merge-warden: grade -->";
 
+// A grade a person asked for on an out-of-scope pull request. The app
+// reports it and never approves, arms, or merges.
+export interface GradeOnly {
+  requestedBy: string;
+  // Why the pull request is out of scope.
+  scope: string;
+}
+
 export interface CheckOutput {
   title: string;
   summary: string;
@@ -58,17 +66,30 @@ export function plainText(text: string, max = 300): string {
   return flat;
 }
 
-export function checkOutput(grade: Grade, verdict: Verdict, model: string): CheckOutput {
-  return {
-    title: verdict.eligible
+export function checkOutput(
+  grade: Grade,
+  verdict: Verdict,
+  model: string,
+  gradeOnly: GradeOnly | null = null,
+): CheckOutput {
+  const title = gradeOnly
+    ? `Grade only: ${plainText(verdict.reason, 100)}`
+    : verdict.eligible
       ? "Eligible for auto-merge"
-      : `Needs a person: ${plainText(verdict.reason, 100)}`,
+      : `Needs a person: ${plainText(verdict.reason, 100)}`;
+  return {
+    title,
     summary: [
       `**Why:** ${plainText(verdict.reason, 200)}`,
       "",
       `Graded with ${model}. The grade and findings are in the merge-warden comment on the pull request.`,
+      ...(gradeOnly ? ["", gradeOnlyNote(gradeOnly)] : []),
     ].join("\n"),
   };
+}
+
+function gradeOnlyNote({ requestedBy, scope }: GradeOnly): string {
+  return `**Grade only:** graded because ${plainText(requestedBy, 100)} asked. This pull request is out of scope (${plainText(scope, 100)}), so merge-warden does not approve or merge it, whatever the grade.`;
 }
 
 // `model` is the model asked to grade; the footer names it only when it
@@ -78,15 +99,19 @@ export function commentBody(
   verdict: Verdict,
   sha: string,
   model: string,
+  gradeOnly: GradeOnly | null = null,
 ): string {
-  const heading = verdict.eligible
-    ? "### ✅ merge-warden: eligible for auto-merge"
-    : "### ⚠️ merge-warden: needs a person";
+  const heading = gradeOnly
+    ? "### 📝 merge-warden: grade only"
+    : verdict.eligible
+      ? "### ✅ merge-warden: eligible for auto-merge"
+      : "### ⚠️ merge-warden: needs a person";
   return [
     commentMarker(model),
     heading,
     "",
-    ...report(grade, verdict),
+    ...(gradeOnly ? [gradeOnlyNote(gradeOnly), ""] : []),
+    ...report(grade, verdict, gradeOnly !== null),
     "",
     `<sub>Graded commit ${sha.slice(0, 7)} with ${model}. A new commit is graded again with the default model. Comment <code>/merge-warden grade [model]</code> to grade again with this one or another.</sub>`,
     "",
@@ -96,7 +121,7 @@ export function commentBody(
   ].join("\n");
 }
 
-function report(grade: Grade, verdict: Verdict): string[] {
+function report(grade: Grade, verdict: Verdict, gradeOnly: boolean): string[] {
   const assessment = grade.assessment;
   const axis = (level: Level | undefined) => (level ? LEVEL_LABEL[level] : "—");
   const reason = plainText(verdict.reason, 200);
@@ -110,7 +135,7 @@ function report(grade: Grade, verdict: Verdict): string[] {
       axis(assessment?.data_security),
       axis(assessment?.recovery),
       DOOR_LABEL[grade.door],
-      verdict.eligible ? "🟢 Merge" : "🔴 Review",
+      gradeOnly ? "👤 Person" : verdict.eligible ? "🟢 Merge" : "🔴 Review",
       assessment ? `${grade.confidence}%` : "—",
     ].join(" | ")} |`,
     "",

@@ -74,9 +74,9 @@ All of these must hold:
    `ci_checks` is never merged directly.
 
 A pull request that fails condition 3 is out of scope: it is not graded
-and gets no check run. For every other pull request the check run
-concludes `success` when conditions 1 and 2 hold for the graded commit,
-and `neutral` otherwise. It never concludes `failure`, so making
+and gets no check run, unless a person asks (see "Grade only" below).
+For every other pull request the check run concludes `success` when
+conditions 1 and 2 hold for the graded commit, and `neutral` otherwise. It never concludes `failure`, so making
 `merge-warden` a required check does not block a manual merge.
 Conditions 4 and 5 are read again on every event, so they can stop a
 merge after the check has concluded `success`.
@@ -138,6 +138,17 @@ comments keep naming the commit they graded.
 Only people with write access can run the command; anyone else's
 comment loses its 👀 and is ignored, and any bot's is ignored. An unknown model name gets a reply
 listing the accepted names. Larger models cost more per grade.
+
+### Grade only
+
+On a pull request from a fork, or by an author not in `authors`, the
+command grades in grade-only mode. The app posts the grade comment and
+the check run, and never approves, arms auto-merge, or merges, whatever
+the grade. The check run always concludes `neutral`, so adding the
+author to `authors` later does not merge a grade-only result. The comment says it is grade-only and who asked. The diff is
+read through the API only; the fork's code is never checked out or run.
+Opening or pushing to such a pull request still grades nothing. A base
+other than the default branch is never graded.
 
 ### Changes that are high risk but reversible
 
