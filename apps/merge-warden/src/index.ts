@@ -59,7 +59,7 @@ export default (app: Probot) => {
     context: Context<ReconcileEvent>,
     pull_number: number,
     mode: Mode,
-    model?: string,
+    command?: { model?: string; requestedBy: string },
   ): Promise<void> {
     const work = (async () => {
       const { owner, repo } = context.repo();
@@ -72,7 +72,8 @@ export default (app: Probot) => {
         config: normalizeConfig(raw as Record<string, unknown> | null, owner),
         ...(await identity()),
         anthropic,
-        ...(model === undefined ? {} : { model }),
+        ...(command?.model === undefined ? {} : { model: command.model }),
+        ...(command === undefined ? {} : { requestedBy: command.requestedBy }),
         log: context.log,
       });
     })();
@@ -151,7 +152,8 @@ export default (app: Probot) => {
 
   // `/merge-warden grade [model]` on a pull request: grade the head commit
   // again, like "Re-run", with the default model or the one named. The
-  // newest grade is the verdict, so this takes write access.
+  // newest grade is the verdict, so this takes write access. On a fork or
+  // an author outside `authors` it grades only: no approval, no merge.
   app.on("issue_comment.created", async (context) => {
     const { issue, comment } = context.payload;
     const user = comment.user;
@@ -195,6 +197,9 @@ export default (app: Probot) => {
       await reaction;
       return;
     }
-    await run(context, issue.number, "regrade", command.model ?? undefined);
+    await run(context, issue.number, "regrade", {
+      ...(command.model === null ? {} : { model: command.model }),
+      requestedBy: user.login,
+    });
   });
 };

@@ -47,6 +47,14 @@ export function scopeBlock(
   return null;
 }
 
+// Whether a person with write access may still ask for a grade of an
+// out-of-scope pull request. Only who wrote it and where its head lives
+// can be set aside, never the base: the app grades only against the
+// default branch. A grade-only run never approves, arms, or merges.
+export function allowsGradeOnly(facts: ScopeFacts): boolean {
+  return facts.baseRef === facts.defaultBranch;
+}
+
 // What the check run concludes for a graded commit. The one-way-door
 // test comes first and reads nothing else: no other field of the grade
 // can make a one-way door eligible.

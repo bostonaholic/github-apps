@@ -71,6 +71,11 @@ Behavioral invariants to preserve:
 - The `/merge-warden grade [model]` comment is a `regrade`, run only for
   a commenter with write or admin permission and never for a bot. Only
   it names a model; every other event grades with the default model.
+- An out-of-scope pull request (fork head, or author not in `authors`)
+  is graded only on that command (`requestedBy` set), and then in
+  grade-only mode: grade comment and check run, never an approval,
+  auto-merge, or merge. Every other event on it makes no model call. A
+  base other than the default branch is never graded.
 - Config is read from the default branch, never from the pull request
   head.
 - The check run never concludes `failure`. `success` means eligible,

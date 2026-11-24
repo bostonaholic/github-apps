@@ -8,6 +8,7 @@ import {
   liveBlock,
   mergeDecision,
   scopeBlock,
+  allowsGradeOnly,
   type LiveFacts,
   type ScopeFacts,
 } from "../src/policy.js";
@@ -70,6 +71,16 @@ describe("scopeBlock", () => {
     expect(scopeBlock(scope({ baseRef: "feature" }), AUTHORS)).toBe(
       "base is not the default branch",
     );
+  });
+});
+
+describe("allowsGradeOnly", () => {
+  it("allows a fork or an unlisted author against the default branch", () => {
+    expect(allowsGradeOnly(scope({ headRepo: "stranger/r", authorLogin: "stranger" }))).toBe(true);
+  });
+
+  it("refuses a base other than the default branch", () => {
+    expect(allowsGradeOnly(scope({ baseRef: "feature" }))).toBe(false);
   });
 });
 

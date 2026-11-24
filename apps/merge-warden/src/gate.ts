@@ -22,6 +22,7 @@ import {
   checkOutput,
   commentBody,
   commentMarker,
+  type GradeOnly,
 } from "./format.js";
 import { buildGrade, type Grade } from "./grade.js";
 import {
@@ -29,10 +30,12 @@ import {
   gradeVerdict,
   hasChangesRequested,
   isApprovedAtHead,
+  allowsGradeOnly,
   mergeDecision,
   scopeBlock,
   type LiveFacts,
   type ReviewFacts,
+  type ScopeFacts,
   type Verdict,
 } from "./policy.js";
 import { readSignals, type ChangedFile } from "./signals.js";
@@ -72,6 +75,10 @@ export interface ReconcileParams {
   // The model that grades. Unset: the default (ANTHROPIC_MODEL or
   // DEFAULT_MODEL). Set by the PR comment command.
   model?: string;
+  // The login of the person who asked for this grade with the PR comment
+  // command. Only such a request grades an out-of-scope pull request, and
+  // only in grade-only mode.
+  requestedBy?: string;
   log?: Logger;
 }
 
@@ -108,17 +115,18 @@ function storedVerdict(runs: OwnRun[], now: number): StoredVerdict {
   return now - startedAt < CLAIM_TTL_MS ? { state: "grading" } : { state: "none" };
 }
 
+function scopeFacts(pr: PullRequest): ScopeFacts {
+  return {
+    authorLogin: pr.user?.login ?? null,
+    headRepo: pr.head.repo?.full_name ?? null,
+    baseRepo: pr.base.repo.full_name,
+    baseRef: pr.base.ref,
+    defaultBranch: pr.base.repo.default_branch,
+  };
+}
+
 function outOfScope(pr: PullRequest, config: WardenConfig): string | null {
-  return scopeBlock(
-    {
-      authorLogin: pr.user?.login ?? null,
-      headRepo: pr.head.repo?.full_name ?? null,
-      baseRepo: pr.base.repo.full_name,
-      baseRef: pr.base.ref,
-      defaultBranch: pr.base.repo.default_branch,
-    },
-    config,
-  );
+  return scopeBlock(scopeFacts(pr), config);
 }
 
 export async function reconcile(
@@ -148,7 +156,31 @@ export async function reconcile(
   const scope = outOfScope(pr, config);
   if (scope) {
     await disarm(pr);
-    log.info(`${tag}: out of scope — ${scope}`);
+    const requestedBy = params.requestedBy;
+    if (mode !== "regrade" || requestedBy === undefined || !allowsGradeOnly(scopeFacts(pr))) {
+      log.info(`${tag}: out of scope — ${scope}`);
+      return;
+    }
+    // A person asked for this grade. Grade and report it, and stop there:
+    // no approval, no auto-merge, no merge, whatever the grade.
+    const defaultModel = modelFromEnv();
+    const model = params.model ?? defaultModel;
+    const verdict = await gradeHead(octokit, {
+      owner,
+      repo,
+      pr,
+      config,
+      anthropic: params.anthropic,
+      model,
+      isDefaultModel: model === defaultModel,
+      botLogin: params.botLogin,
+      log,
+      beforePublish: async () => {},
+      gradeOnly: { requestedBy, scope },
+    });
+    log.info(
+      `${tag}: graded ${pr.head.sha} with ${model} for ${requestedBy}, grade only (${scope}) — ${verdict.reason}`,
+    );
     return;
   }
 
@@ -233,6 +265,7 @@ export async function reconcile(
       botLogin: params.botLogin,
       log,
       beforePublish: approveBeforeVerdict,
+      gradeOnly: null,
     });
     log.info(`${tag}: graded ${head} with ${model} — ${verdict.reason}`);
     conclusion = conclusionFor(verdict);
@@ -351,7 +384,19 @@ async function readLive(
 
 async function gradeHead(
   octokit: Octokit,
-  { owner, repo, pr, config, anthropic, model, isDefaultModel, botLogin, log, beforePublish }: {
+  {
+    owner,
+    repo,
+    pr,
+    config,
+    anthropic,
+    model,
+    isDefaultModel,
+    botLogin,
+    log,
+    beforePublish,
+    gradeOnly,
+  }: {
     owner: string;
     repo: string;
     pr: PullRequest;
@@ -363,6 +408,8 @@ async function gradeHead(
     log: Logger;
     // Runs for an eligible verdict, while the claim is still in progress.
     beforePublish: (verdict: Verdict) => Promise<void>;
+    // Set when a person asked for a grade of an out-of-scope pull request.
+    gradeOnly: GradeOnly | null;
   },
 ): Promise<Verdict> {
   const { data: claim } = await octokit.rest.checks.create({
@@ -400,7 +447,7 @@ async function gradeHead(
       check_run_id: Number(claim.id),
       status: "completed",
       conclusion: conclusionFor(verdict),
-      output: checkOutput(grade, verdict, model),
+      output: checkOutput(grade, verdict, model, gradeOnly),
     });
   } catch (error) {
     // Release the claim so the commit does not sit "in progress". Neutral,
@@ -432,7 +479,7 @@ async function gradeHead(
       markers: isDefaultModel
         ? [commentMarker(model), LEGACY_COMMENT_MARKER]
         : [commentMarker(model)],
-      body: commentBody(grade, verdict, pr.head.sha, model),
+      body: commentBody(grade, verdict, pr.head.sha, model, gradeOnly),
     });
   } catch (error) {
     log.warn(`${owner}/${repo}#${pr.number}: grade comment failed — ${errorMessage(error)}`);
