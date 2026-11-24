@@ -144,7 +144,8 @@ listing the accepted names. Larger models cost more per grade.
 On a pull request from a fork, or by an author not in `authors`, the
 command grades in grade-only mode. The app posts the grade comment and
 the check run, and never approves, arms auto-merge, or merges, whatever
-the grade. The comment says it is grade-only and who asked. The diff is
+the grade. The check run always concludes `neutral`, so adding the
+author to `authors` later does not merge a grade-only result. The comment says it is grade-only and who asked. The diff is
 read through the API only; the fork's code is never checked out or run.
 Opening or pushing to such a pull request still grades nothing. A base
 other than the default branch is never graded.

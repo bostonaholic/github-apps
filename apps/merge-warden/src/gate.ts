@@ -446,7 +446,9 @@ async function gradeHead(
       repo,
       check_run_id: Number(claim.id),
       status: "completed",
-      conclusion: conclusionFor(verdict),
+      // Grade only: always neutral, so a stored success never lets a
+      // later event merge a pull request nobody asked the app to merge.
+      conclusion: gradeOnly ? "neutral" : conclusionFor(verdict),
       output: checkOutput(grade, verdict, model, gradeOnly),
     });
   } catch (error) {

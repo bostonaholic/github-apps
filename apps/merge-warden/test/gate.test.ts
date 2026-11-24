@@ -406,14 +406,16 @@ describe("reconcile: grade only, on request, out of scope", () => {
     ]);
     expect(calls.assessments).toHaveLength(1);
     expect(calls.order).toEqual(["claim", "model", "complete"]);
-    expect(conclusionOf(calls)).toBe("success");
-    expect(titleOf(calls)).toBe("Grade only: Eligible for auto-merge");
+    expect(conclusionOf(calls)).toBe("neutral");
+    expect(titleOf(calls)).toBe("Grade only: two-way door, low risk, confidence 95%");
     expect(calls.approvals).toHaveLength(0);
     expect(calls.arms).toHaveLength(0);
     expect(calls.merges).toHaveLength(0);
     const body = summaryOf(calls);
     expect(body).toContain("### 📝 merge-warden: grade only");
     expect(body).toContain("graded because maintainer asked");
+    expect(body).toContain("👤 Person");
+    expect(body).not.toContain("🟢 Merge");
   });
 
   it("disarms its own auto-merge before grading", async () => {

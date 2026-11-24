@@ -72,11 +72,13 @@ export function checkOutput(
   model: string,
   gradeOnly: GradeOnly | null = null,
 ): CheckOutput {
-  const title = verdict.eligible
-    ? "Eligible for auto-merge"
-    : `Needs a person: ${plainText(verdict.reason, 100)}`;
+  const title = gradeOnly
+    ? `Grade only: ${plainText(verdict.reason, 100)}`
+    : verdict.eligible
+      ? "Eligible for auto-merge"
+      : `Needs a person: ${plainText(verdict.reason, 100)}`;
   return {
-    title: gradeOnly ? `Grade only: ${title}` : title,
+    title,
     summary: [
       `**Why:** ${plainText(verdict.reason, 200)}`,
       "",
@@ -109,7 +111,7 @@ export function commentBody(
     heading,
     "",
     ...(gradeOnly ? [gradeOnlyNote(gradeOnly), ""] : []),
-    ...report(grade, verdict),
+    ...report(grade, verdict, gradeOnly !== null),
     "",
     `<sub>Graded commit ${sha.slice(0, 7)} with ${model}. A new commit is graded again with the default model. Comment <code>/merge-warden grade [model]</code> to grade again with this one or another.</sub>`,
     "",
@@ -119,7 +121,7 @@ export function commentBody(
   ].join("\n");
 }
 
-function report(grade: Grade, verdict: Verdict): string[] {
+function report(grade: Grade, verdict: Verdict, gradeOnly: boolean): string[] {
   const assessment = grade.assessment;
   const axis = (level: Level | undefined) => (level ? LEVEL_LABEL[level] : "—");
   const reason = plainText(verdict.reason, 200);
@@ -133,7 +135,7 @@ function report(grade: Grade, verdict: Verdict): string[] {
       axis(assessment?.data_security),
       axis(assessment?.recovery),
       DOOR_LABEL[grade.door],
-      verdict.eligible ? "🟢 Merge" : "🔴 Review",
+      gradeOnly ? "👤 Person" : verdict.eligible ? "🟢 Merge" : "🔴 Review",
       assessment ? `${grade.confidence}%` : "—",
     ].join(" | ")} |`,
     "",

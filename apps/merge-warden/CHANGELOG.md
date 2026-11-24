@@ -23,8 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   is removed if the commenter lacks write access.
 - `/merge-warden grade [model]` grades a pull request from a fork or by
   an author not in `authors` in grade-only mode: the app posts the grade
-  comment and the check run, names who asked, and never approves or
-  merges it. Opening or pushing to such a pull request still grades
+  comment and a `neutral` check run, names who asked, and never approves
+  or merges it. Opening or pushing to such a pull request still grades
   nothing.
 
 ### Changed
