@@ -74,9 +74,9 @@ All of these must hold:
    `ci_checks` is never merged directly.
 
 A pull request that fails condition 3 is out of scope: it is not graded
-and gets no check run, unless a person asks (see "Grade only" below). For every other pull request the check run
-concludes `success` when conditions 1 and 2 hold for the graded commit,
-and `neutral` otherwise. It never concludes `failure`, so making
+and gets no check run, unless a person asks (see "Grade only" below).
+For every other pull request the check run concludes `success` when
+conditions 1 and 2 hold for the graded commit, and `neutral` otherwise. It never concludes `failure`, so making
 `merge-warden` a required check does not block a manual merge.
 Conditions 4 and 5 are read again on every event, so they can stop a
 merge after the check has concluded `success`.
