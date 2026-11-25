@@ -19,6 +19,7 @@ configuration, and deployment.
 | App | Description |
 | --- | ----------- |
 | [dependabot-shepherd](./apps/dependabot-shepherd/) | Approves, merges, and rebases Dependabot PRs per policy. |
+| [fix-forward](./apps/fix-forward/) | Has a coding agent fix the root cause when CI on the default branch goes red. |
 | [merge-warden](./apps/merge-warden/) | Grades PRs on risk and auto-merges the low-risk two-way-door ones. |
 | [task-list-completed](./apps/task-list-completed/) | Blocks PR merges until every markdown checkbox on the PR is ticked. |
 
