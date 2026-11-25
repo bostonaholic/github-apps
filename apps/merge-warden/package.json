@@ -1,6 +1,6 @@
 {
   "name": "merge-warden",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "GitHub App that grades pull requests on risk and auto-merges the low-risk two-way-door ones",
   "type": "module",
